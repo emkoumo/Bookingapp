@@ -5,6 +5,9 @@ import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
 
+// Toast notification state
+let toastTimeout: NodeJS.Timeout
+
 interface EmailTemplate {
   id: string
   name: string
@@ -44,6 +47,9 @@ export default function EmailComposerModal({
   const [includePriceList, setIncludePriceList] = useState(template.includeImageByDefault ?? false)
   const [priceListImage, setPriceListImage] = useState(template.imageUrl || '')
   const [isEditingTemplate, setIsEditingTemplate] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+  const [toastType, setToastType] = useState<'success' | 'error'>('success')
+  const [isMobile, setIsMobile] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
 
   // Sync editedTemplate when template prop changes (after save)
@@ -55,6 +61,16 @@ export default function EmailComposerModal({
     setIncludePriceList(template.includeImageByDefault ?? false)
     setPriceListImage(template.imageUrl || '')
   }, [template])
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message)
+    setToastType(type)
+    clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+      setToastMessage('')
+    }, 3000)
+  }
 
   // Add new date range
   const addDateRange = () => {
@@ -101,9 +117,9 @@ export default function EmailComposerModal({
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      alert('Αντιγράφηκε!')
+      showToast('✅ Αντιγράφηκε!')
     } catch (err) {
-      alert('Σφάλμα αντιγραφής')
+      showToast('❌ Σφάλμα αντιγραφής', 'error')
     }
   }
 
@@ -139,7 +155,7 @@ export default function EmailComposerModal({
         })
 
         await navigator.clipboard.write([clipboardItem])
-        alert('✅ Email αντιγράφηκε με εικόνα! Κάντε paste στο email σας.')
+        showToast('✅ Email αντιγράφηκε με εικόνα!')
       } else {
         // Fallback: copy to hidden div and use execCommand
         const div = document.createElement('div')
@@ -163,11 +179,11 @@ export default function EmailComposerModal({
         selection?.removeAllRanges()
         document.body.removeChild(div)
 
-        alert('✅ Email αντιγράφηκε! Κάντε paste στο email σας.')
+        showToast('✅ Email αντιγράφηκε!')
       }
     } catch (err) {
       console.error('Copy error:', err)
-      alert('❌ Σφάλμα αντιγραφής. Δοκιμάστε ξανά.')
+      showToast('❌ Σφάλμα αντιγραφής', 'error')
     }
   }
 
@@ -557,6 +573,21 @@ export default function EmailComposerModal({
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-[80] animate-slide-in">
+          <div
+            className={`px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 ${
+              toastType === 'success'
+                ? 'bg-green-500 text-white'
+                : 'bg-red-500 text-white'
+            }`}
+          >
+            <span className="text-lg font-medium">{toastMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
