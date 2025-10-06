@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id         String   @id @default(uuid())
+  name       String
+  email      String
+  properties Property[]
+  emailTemplates EmailTemplate[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Property {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  description String?
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Booking {
+  id           String   @id @default(uuid())
+  propertyId   String
+  customerName String
+  contactInfo  String?
+  checkIn      DateTime @db.Date
+  checkOut     DateTime @db.Date
+  deposit      String?
+  notes        String?
+  status       String   @default("active")
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([checkIn])
+  @@index([checkOut])
+  @@index([status])
+}
+
+model EmailTemplate {
+  id                    String   @id @default(uuid())
+  businessId            String
+  name                  String
+  subject               String
+  body                  String
+  imageUrl              String?
+  includeImageByDefault Boolean  @default(false)
+  business              Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([businessId, name])
+}
