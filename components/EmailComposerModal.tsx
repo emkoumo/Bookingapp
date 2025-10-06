@@ -123,60 +123,58 @@ export default function EmailComposerModal({
     }
   }
 
-  // Copy text + image with HTML (works on ALL clients including iPhone Mail!)
-  const copyRichEmailToClipboard = async () => {
+  // Copy email text only (works everywhere!)
+  const copyEmailText = async () => {
     try {
-      // Generate email body
       const plainTextBody = generateEmailBody()
       const plainText = `Subject: ${editedTemplate.subject}\n\n${plainTextBody}`
-      const htmlBody = plainTextBody.replace(/\n/g, '<br>')
-
-      // Modern Clipboard API with multi-MIME type support
-      if (navigator.clipboard && window.ClipboardItem) {
-        const clipboardData: Record<string, Blob | Promise<Blob>> = {}
-
-        // Always include plain text
-        clipboardData['text/plain'] = new Blob([plainText], { type: 'text/plain' })
-
-        // If image included, create HTML with base64-encoded image
-        if (includePriceList && priceListImage) {
-          const imageUrl = priceListImage.startsWith('http')
-            ? priceListImage
-            : `${window.location.origin}${priceListImage}`
-
-          // Fetch and convert image to base64
-          const response = await fetch(imageUrl)
-          const blob = await response.blob()
-          const base64Image = await new Promise<string>((resolve) => {
-            const reader = new FileReader()
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.readAsDataURL(blob)
-          })
-
-          // Create HTML with embedded base64 image
-          const htmlWithImage = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">${htmlBody}<br><br><img src="${base64Image}" alt="Price List" style="max-width: 600px; height: auto; display: block;" /></div>`
-          clipboardData['text/html'] = new Blob([htmlWithImage], { type: 'text/html' })
-        } else {
-          // No image - just HTML formatted text
-          const htmlText = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">${htmlBody}</div>`
-          clipboardData['text/html'] = new Blob([htmlText], { type: 'text/html' })
-        }
-
-        // Write to clipboard with multiple MIME types
-        const clipboardItem = new ClipboardItem(clipboardData)
-        await navigator.clipboard.write([clipboardItem])
-
-        showToast(includePriceList && priceListImage
-          ? '✅ Email & εικόνα αντιγράφηκαν!'
-          : '✅ Email αντιγράφηκε!')
-      } else {
-        // Fallback for older browsers
-        await navigator.clipboard.writeText(plainText)
-        showToast('✅ Email αντιγράφηκε (χωρίς εικόνα)')
-      }
+      await navigator.clipboard.writeText(plainText)
+      showToast('✅ Κείμενο αντιγράφηκε!')
     } catch (err) {
-      console.error('Copy error:', err)
-      showToast('❌ Σφάλμα αντιγραφής', 'error')
+      console.error('Copy text error:', err)
+      showToast('❌ Σφάλμα αντιγραφής κειμένου', 'error')
+    }
+  }
+
+  // Copy image as blob (works on iPhone Mail!)
+  const copyImageBlob = async () => {
+    if (!includePriceList || !priceListImage) {
+      showToast('❌ Δεν υπάρχει εικόνα', 'error')
+      return
+    }
+
+    try {
+      const imageUrl = priceListImage.startsWith('http')
+        ? priceListImage
+        : `${window.location.origin}${priceListImage}`
+
+      // Fetch image
+      const response = await fetch(imageUrl)
+      const blob = await response.blob()
+
+      // Safari requires Promise, Chrome requires Blob
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+      if (isSafari) {
+        // Safari: Pass promise directly
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [blob.type]: Promise.resolve(blob)
+          })
+        ])
+      } else {
+        // Chrome/other: Pass blob directly
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [blob.type]: blob
+          })
+        ])
+      }
+
+      showToast('✅ Εικόνα αντιγράφηκε!')
+    } catch (err) {
+      console.error('Copy image error:', err)
+      showToast('❌ Σφάλμα αντιγραφής εικόνας', 'error')
     }
   }
 
@@ -536,16 +534,24 @@ export default function EmailComposerModal({
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                className="px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
               >
                 Ακύρωση
               </button>
               <button
-                onClick={() => copyRichEmailToClipboard()}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
+                onClick={() => copyEmailText()}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
               >
-                Αντιγραφή Email
+                📝 Αντιγραφή Κειμένου
               </button>
+              {includePriceList && priceListImage && (
+                <button
+                  onClick={() => copyImageBlob()}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
+                >
+                  🖼️ Αντιγραφή Εικόνας
+                </button>
+              )}
             </div>
           ) : (
             /* Template Editor Footer */
