@@ -97,6 +97,16 @@ export default function EmailComposerModal({
       .join('\n')
   }
 
+  // Simple copy to clipboard (for subject/body preview)
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Αντιγράφηκε!')
+    } catch (err) {
+      alert('Σφάλμα αντιγραφής')
+    }
+  }
+
   // Copy rich HTML to clipboard (works in all email clients)
   const copyRichEmailToClipboard = async () => {
     try {
