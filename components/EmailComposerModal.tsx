@@ -97,50 +97,81 @@ export default function EmailComposerModal({
       .join('\n')
   }
 
-  // Copy to clipboard helper with fallback
-  const copyToClipboard = async (text: string) => {
+  // Copy rich HTML to clipboard (works in all email clients)
+  const copyRichEmailToClipboard = async () => {
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text)
-        alert('Το email αντιγράφηκε!')
+      // Generate HTML email
+      const htmlBody = generateEmailBody()
+        .replace(/\n/g, '<br>')
+
+      // Add image if included
+      let finalHTML = htmlBody
+      if (includePriceList && priceListImage) {
+        const imageUrl = priceListImage.startsWith('http')
+          ? priceListImage
+          : `${window.location.origin}${priceListImage}`
+        finalHTML += `<br><br><img src="${imageUrl}" alt="Price List" style="max-width: 600px; height: auto; display: block;" />`
+      }
+
+      // Create HTML with proper formatting
+      const fullHTML = `
+        <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
+          ${finalHTML}
+        </div>
+      `
+
+      // Try modern Clipboard API with both HTML and plain text
+      if (navigator.clipboard && window.ClipboardItem) {
+        const plainText = `Subject: ${editedTemplate.subject}\n\n${generateEmailBody()}`
+
+        const htmlBlob = new Blob([fullHTML], { type: 'text/html' })
+        const textBlob = new Blob([plainText], { type: 'text/plain' })
+
+        const clipboardItem = new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob
+        })
+
+        await navigator.clipboard.write([clipboardItem])
+        alert('✅ Email αντιγράφηκε με εικόνα! Κάντε paste στο email σας.')
       } else {
-        // Fallback for mobile/non-HTTPS
-        const textArea = document.createElement('textarea')
-        textArea.value = text
-        textArea.style.position = 'fixed'
-        textArea.style.left = '-999999px'
-        textArea.style.top = '-999999px'
-        document.body.appendChild(textArea)
-        textArea.focus()
-        textArea.select()
-        try {
-          document.execCommand('copy')
-          alert('Το email αντιγράφηκε!')
-        } catch (err) {
-          alert('Σφάλμα αντιγραφής')
-        }
-        textArea.remove()
+        // Fallback: copy to hidden div and use execCommand
+        const div = document.createElement('div')
+        div.contentEditable = 'true'
+        div.innerHTML = fullHTML
+        div.style.position = 'fixed'
+        div.style.left = '-999999px'
+        document.body.appendChild(div)
+
+        // Select the content
+        const range = document.createRange()
+        range.selectNodeContents(div)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+
+        // Copy
+        document.execCommand('copy')
+
+        // Cleanup
+        selection?.removeAllRanges()
+        document.body.removeChild(div)
+
+        alert('✅ Email αντιγράφηκε! Κάντε paste στο email σας.')
       }
     } catch (err) {
-      alert('Σφάλμα αντιγραφής')
+      console.error('Copy error:', err)
+      alert('❌ Σφάλμα αντιγραφής. Δοκιμάστε ξανά.')
     }
   }
 
-  // Generate final email body with replacements
+  // Generate final email body with replacements (plain text - no image)
   const generateEmailBody = () => {
     let body = editedTemplate.body
 
     // Replace alternative dates
     const alternativeDates = formatAlternativeDates()
     body = body.replace(/\{\{ALTERNATIVE_DATES\}\}/g, alternativeDates)
-
-    // Add price list image if included (with proper HTML)
-    if (includePriceList && priceListImage) {
-      const imageUrl = priceListImage.startsWith('http')
-        ? priceListImage
-        : `${window.location.origin}${priceListImage}`
-      body += `\n\n<img src="${imageUrl}" alt="Price List" style="max-width: 600px; height: auto;" />`
-    }
 
     return body
   }
@@ -495,10 +526,10 @@ export default function EmailComposerModal({
                 Ακύρωση
               </button>
               <button
-                onClick={() => copyToClipboard(`${editedTemplate.subject}\n\n${generateEmailBody()}`)}
+                onClick={() => copyRichEmailToClipboard()}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
               >
-                Αντιγραφή
+                Αντιγραφή Email
               </button>
             </div>
           ) : (

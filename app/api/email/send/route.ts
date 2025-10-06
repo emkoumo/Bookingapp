@@ -15,6 +15,9 @@ export async function POST(request: Request) {
       checkIn,
       checkOut,
       paymentMethod, // 'bank' or 'western_union'
+      imageUrl, // Price list image URL
+      subject, // Custom subject
+      emailBody: customBody, // Custom body (already processed)
     } = body
 
     if (!businessId || !templateName || !recipientEmail) {
@@ -44,53 +47,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // Process template placeholders
-    let emailBody = template.body
+    // Use custom body if provided, otherwise process template
+    let emailBody = customBody || template.body
 
-    if (recipientName) {
-      emailBody = emailBody.replace(/{{CUSTOMER_NAME}}/g, recipientName)
-    }
+    // Only process placeholders if using template (not custom body)
+    if (!customBody) {
+      if (recipientName) {
+        emailBody = emailBody.replace(/{{CUSTOMER_NAME}}/g, recipientName)
+      }
 
-    if (alternativeDates && Array.isArray(alternativeDates)) {
-      const datesText = alternativeDates
-        .map((range) => `• ${range.start} to ${range.end}`)
-        .join('\n')
-      emailBody = emailBody.replace(/{{ALTERNATIVE_DATES}}/g, datesText)
-    }
+      if (alternativeDates && Array.isArray(alternativeDates)) {
+        const datesText = alternativeDates
+          .map((range) => `• ${range.start} to ${range.end}`)
+          .join('\n')
+        emailBody = emailBody.replace(/{{ALTERNATIVE_DATES}}/g, datesText)
+      }
 
-    if (checkIn) {
-      emailBody = emailBody.replace(
-        /{{CHECK_IN}}/g,
-        format(new Date(checkIn), 'dd/MM/yyyy')
-      )
-    }
+      if (checkIn) {
+        emailBody = emailBody.replace(
+          /{{CHECK_IN}}/g,
+          format(new Date(checkIn), 'dd/MM/yyyy')
+        )
+      }
 
-    if (checkOut) {
-      emailBody = emailBody.replace(
-        /{{CHECK_OUT}}/g,
-        format(new Date(checkOut), 'dd/MM/yyyy')
-      )
-    }
+      if (checkOut) {
+        emailBody = emailBody.replace(
+          /{{CHECK_OUT}}/g,
+          format(new Date(checkOut), 'dd/MM/yyyy')
+        )
+      }
 
-    // Payment info
-    if (paymentMethod === 'bank') {
-      const bankInfo = `Please make a deposit via Bank Transfer:
+      // Payment info
+      if (paymentMethod === 'bank') {
+        const bankInfo = `Please make a deposit via Bank Transfer:
 
 Bank: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_BANK_NAME`] || 'Bank Name'}
 IBAN: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_IBAN`] || 'IBAN'}
 Account Holder: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_ACCOUNT_HOLDER`] || 'Account Holder'}`
 
-      emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, bankInfo)
-    } else if (paymentMethod === 'western_union') {
-      const wuInfo = `Please make a deposit via Western Union:
+        emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, bankInfo)
+      } else if (paymentMethod === 'western_union') {
+        const wuInfo = `Please make a deposit via Western Union:
 
 Recipient Name: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_WU_RECIPIENT`] || 'Recipient Name'}
 City: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_WU_CITY`] || 'City'}
 Country: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_WU_COUNTRY`] || 'Country'}`
 
-      emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, wuInfo)
-    } else {
-      emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, '')
+        emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, wuInfo)
+      } else {
+        emailBody = emailBody.replace(/{{PAYMENT_INFO}}/g, '')
+      }
+    }
+
+    // Generate HTML version with image if provided
+    let htmlBody = emailBody.replace(/\n/g, '<br>')
+    if (imageUrl) {
+      htmlBody += `<br><br><img src="${imageUrl}" alt="Price List" style="max-width: 600px; height: auto; display: block;" />`
     }
 
     // Create email transporter
@@ -108,9 +120,9 @@ Country: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_WU_COUNTR
     const info = await transporter.sendMail({
       from: business.email,
       to: recipientEmail,
-      subject: template.subject,
+      subject: subject || template.subject,
       text: emailBody,
-      html: emailBody.replace(/\n/g, '<br>'),
+      html: htmlBody,
     })
 
     return NextResponse.json({
