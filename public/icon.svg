@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#grad)" rx="64"/>
+  
+  <!-- Calendar body -->
+  <rect x="102" y="128" width="308" height="282" fill="#ffffff" rx="16"/>
+  
+  <!-- Calendar header -->
+  <rect x="102" y="128" width="308" height="61" fill="#1e40af" rx="16"/>
+  <rect x="102" y="160" width="308" height="29" fill="#1e40af"/>
+  
+  <!-- Binding clips -->
+  <rect x="154" y="92" width="41" height="61" fill="#ffffff" rx="8"/>
+  <rect x="317" y="92" width="41" height="61" fill="#ffffff" rx="8"/>
+  
+  <!-- Grid lines -->
+  <line x1="128" y1="230" x2="384" y2="230" stroke="#e5e7eb" stroke-width="3"/>
+  <line x1="128" y1="281" x2="384" y2="281" stroke="#e5e7eb" stroke-width="3"/>
+  <line x1="128" y1="332" x2="384" y2="332" stroke="#e5e7eb" stroke-width="3"/>
+  
+  <line x1="179" y1="189" x2="179" y2="394" stroke="#e5e7eb" stroke-width="3"/>
+  <line x1="256" y1="189" x2="256" y2="394" stroke="#e5e7eb" stroke-width="3"/>
+  <line x1="333" y1="189" x2="333" y2="394" stroke="#e5e7eb" stroke-width="3"/>
+  
+  <!-- Checkmark -->
+  <path d="M 240 280 L 260 300 L 300 240" stroke="#3b82f6" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
