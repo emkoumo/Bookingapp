@@ -124,11 +124,7 @@ export default function EmailComposerModal({
       }
 
       // Create HTML with proper formatting
-      const fullHTML = `
-        <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
-          ${finalHTML}
-        </div>
-      `
+      const fullHTML = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${finalHTML}</div>`
 
       // Try modern Clipboard API with both HTML and plain text
       if (navigator.clipboard && window.ClipboardItem) {
