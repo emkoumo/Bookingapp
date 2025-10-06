@@ -321,3 +321,4 @@ For issues or questions, please open an issue on GitHub.
 ---
 
 **Built with ❤️ for Evaggelia Rental Apartments & Elegancia Luxury Villas**
+# Repository is now public and ready for deployment
