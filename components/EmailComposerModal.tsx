@@ -123,12 +123,13 @@ export default function EmailComposerModal({
     }
   }
 
-  // Copy email with multi-MIME support (text + image) - works on ALL email clients including iPhone Mail
+  // Copy text + image with HTML (works on ALL clients including iPhone Mail!)
   const copyRichEmailToClipboard = async () => {
     try {
-      // Generate plain text email body
+      // Generate email body
       const plainTextBody = generateEmailBody()
       const plainText = `Subject: ${editedTemplate.subject}\n\n${plainTextBody}`
+      const htmlBody = plainTextBody.replace(/\n/g, '<br>')
 
       // Modern Clipboard API with multi-MIME type support
       if (navigator.clipboard && window.ClipboardItem) {
@@ -137,86 +138,28 @@ export default function EmailComposerModal({
         // Always include plain text
         clipboardData['text/plain'] = new Blob([plainText], { type: 'text/plain' })
 
-        // If image is included, fetch and add as image/png blob
+        // If image included, create HTML with base64-encoded image
         if (includePriceList && priceListImage) {
           const imageUrl = priceListImage.startsWith('http')
             ? priceListImage
             : `${window.location.origin}${priceListImage}`
 
-          // Safari requires a Promise, not an awaited blob
-          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+          // Fetch and convert image to base64
+          const response = await fetch(imageUrl)
+          const blob = await response.blob()
+          const base64Image = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
 
-          if (isSafari) {
-            // Safari: Pass promise directly
-            clipboardData['image/png'] = fetch(imageUrl)
-              .then(response => response.blob())
-              .then(blob => {
-                // Convert to PNG if needed
-                if (blob.type === 'image/png') {
-                  return blob
-                } else {
-                  // Convert other formats to PNG via canvas
-                  return new Promise<Blob>((resolve, reject) => {
-                    const img = new Image()
-                    img.crossOrigin = 'anonymous'
-                    img.onload = () => {
-                      const canvas = document.createElement('canvas')
-                      canvas.width = img.width
-                      canvas.height = img.height
-                      const ctx = canvas.getContext('2d')
-                      if (!ctx) {
-                        reject(new Error('Canvas not supported'))
-                        return
-                      }
-                      ctx.drawImage(img, 0, 0)
-                      canvas.toBlob((pngBlob) => {
-                        if (pngBlob) {
-                          resolve(pngBlob)
-                        } else {
-                          reject(new Error('Failed to convert to PNG'))
-                        }
-                      }, 'image/png')
-                    }
-                    img.onerror = () => reject(new Error('Failed to load image'))
-                    img.src = imageUrl
-                  })
-                }
-              })
-          } else {
-            // Chrome/other browsers: Await blob first
-            const response = await fetch(imageUrl)
-            let imageBlob = await response.blob()
-
-            // Convert to PNG if not already
-            if (imageBlob.type !== 'image/png') {
-              imageBlob = await new Promise<Blob>((resolve, reject) => {
-                const img = new Image()
-                img.crossOrigin = 'anonymous'
-                img.onload = () => {
-                  const canvas = document.createElement('canvas')
-                  canvas.width = img.width
-                  canvas.height = img.height
-                  const ctx = canvas.getContext('2d')
-                  if (!ctx) {
-                    reject(new Error('Canvas not supported'))
-                    return
-                  }
-                  ctx.drawImage(img, 0, 0)
-                  canvas.toBlob((pngBlob) => {
-                    if (pngBlob) {
-                      resolve(pngBlob)
-                    } else {
-                      reject(new Error('Failed to convert to PNG'))
-                    }
-                  }, 'image/png')
-                }
-                img.onerror = () => reject(new Error('Failed to load image'))
-                img.src = imageUrl
-              })
-            }
-
-            clipboardData['image/png'] = imageBlob
-          }
+          // Create HTML with embedded base64 image
+          const htmlWithImage = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">${htmlBody}<br><br><img src="${base64Image}" alt="Price List" style="max-width: 600px; height: auto; display: block;" /></div>`
+          clipboardData['text/html'] = new Blob([htmlWithImage], { type: 'text/html' })
+        } else {
+          // No image - just HTML formatted text
+          const htmlText = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">${htmlBody}</div>`
+          clipboardData['text/html'] = new Blob([htmlText], { type: 'text/html' })
         }
 
         // Write to clipboard with multiple MIME types
