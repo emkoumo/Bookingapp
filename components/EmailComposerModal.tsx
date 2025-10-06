@@ -123,63 +123,113 @@ export default function EmailComposerModal({
     }
   }
 
-  // Copy rich HTML to clipboard (works in all email clients)
+  // Copy email with multi-MIME support (text + image) - works on ALL email clients including iPhone Mail
   const copyRichEmailToClipboard = async () => {
     try {
-      // Generate HTML email
-      const htmlBody = generateEmailBody()
-        .replace(/\n/g, '<br>')
+      // Generate plain text email body
+      const plainTextBody = generateEmailBody()
+      const plainText = `Subject: ${editedTemplate.subject}\n\n${plainTextBody}`
 
-      // Add image if included
-      let finalHTML = htmlBody
-      if (includePriceList && priceListImage) {
-        const imageUrl = priceListImage.startsWith('http')
-          ? priceListImage
-          : `${window.location.origin}${priceListImage}`
-        finalHTML += `<br><br><img src="${imageUrl}" alt="Price List" style="max-width: 600px; height: auto; display: block;" />`
-      }
-
-      // Create HTML with proper formatting
-      const fullHTML = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${finalHTML}</div>`
-
-      // Try modern Clipboard API with both HTML and plain text
+      // Modern Clipboard API with multi-MIME type support
       if (navigator.clipboard && window.ClipboardItem) {
-        const plainText = `Subject: ${editedTemplate.subject}\n\n${generateEmailBody()}`
+        const clipboardData: Record<string, Blob | Promise<Blob>> = {}
 
-        const htmlBlob = new Blob([fullHTML], { type: 'text/html' })
-        const textBlob = new Blob([plainText], { type: 'text/plain' })
+        // Always include plain text
+        clipboardData['text/plain'] = new Blob([plainText], { type: 'text/plain' })
 
-        const clipboardItem = new ClipboardItem({
-          'text/html': htmlBlob,
-          'text/plain': textBlob
-        })
+        // If image is included, fetch and add as image/png blob
+        if (includePriceList && priceListImage) {
+          const imageUrl = priceListImage.startsWith('http')
+            ? priceListImage
+            : `${window.location.origin}${priceListImage}`
 
+          // Safari requires a Promise, not an awaited blob
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+          if (isSafari) {
+            // Safari: Pass promise directly
+            clipboardData['image/png'] = fetch(imageUrl)
+              .then(response => response.blob())
+              .then(blob => {
+                // Convert to PNG if needed
+                if (blob.type === 'image/png') {
+                  return blob
+                } else {
+                  // Convert other formats to PNG via canvas
+                  return new Promise<Blob>((resolve, reject) => {
+                    const img = new Image()
+                    img.crossOrigin = 'anonymous'
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas')
+                      canvas.width = img.width
+                      canvas.height = img.height
+                      const ctx = canvas.getContext('2d')
+                      if (!ctx) {
+                        reject(new Error('Canvas not supported'))
+                        return
+                      }
+                      ctx.drawImage(img, 0, 0)
+                      canvas.toBlob((pngBlob) => {
+                        if (pngBlob) {
+                          resolve(pngBlob)
+                        } else {
+                          reject(new Error('Failed to convert to PNG'))
+                        }
+                      }, 'image/png')
+                    }
+                    img.onerror = () => reject(new Error('Failed to load image'))
+                    img.src = imageUrl
+                  })
+                }
+              })
+          } else {
+            // Chrome/other browsers: Await blob first
+            const response = await fetch(imageUrl)
+            let imageBlob = await response.blob()
+
+            // Convert to PNG if not already
+            if (imageBlob.type !== 'image/png') {
+              imageBlob = await new Promise<Blob>((resolve, reject) => {
+                const img = new Image()
+                img.crossOrigin = 'anonymous'
+                img.onload = () => {
+                  const canvas = document.createElement('canvas')
+                  canvas.width = img.width
+                  canvas.height = img.height
+                  const ctx = canvas.getContext('2d')
+                  if (!ctx) {
+                    reject(new Error('Canvas not supported'))
+                    return
+                  }
+                  ctx.drawImage(img, 0, 0)
+                  canvas.toBlob((pngBlob) => {
+                    if (pngBlob) {
+                      resolve(pngBlob)
+                    } else {
+                      reject(new Error('Failed to convert to PNG'))
+                    }
+                  }, 'image/png')
+                }
+                img.onerror = () => reject(new Error('Failed to load image'))
+                img.src = imageUrl
+              })
+            }
+
+            clipboardData['image/png'] = imageBlob
+          }
+        }
+
+        // Write to clipboard with multiple MIME types
+        const clipboardItem = new ClipboardItem(clipboardData)
         await navigator.clipboard.write([clipboardItem])
-        showToast('✅ Email αντιγράφηκε με εικόνα!')
+
+        showToast(includePriceList && priceListImage
+          ? '✅ Email & εικόνα αντιγράφηκαν!'
+          : '✅ Email αντιγράφηκε!')
       } else {
-        // Fallback: copy to hidden div and use execCommand
-        const div = document.createElement('div')
-        div.contentEditable = 'true'
-        div.innerHTML = fullHTML
-        div.style.position = 'fixed'
-        div.style.left = '-999999px'
-        document.body.appendChild(div)
-
-        // Select the content
-        const range = document.createRange()
-        range.selectNodeContents(div)
-        const selection = window.getSelection()
-        selection?.removeAllRanges()
-        selection?.addRange(range)
-
-        // Copy
-        document.execCommand('copy')
-
-        // Cleanup
-        selection?.removeAllRanges()
-        document.body.removeChild(div)
-
-        showToast('✅ Email αντιγράφηκε!')
+        // Fallback for older browsers
+        await navigator.clipboard.writeText(plainText)
+        showToast('✅ Email αντιγράφηκε (χωρίς εικόνα)')
       }
     } catch (err) {
       console.error('Copy error:', err)
