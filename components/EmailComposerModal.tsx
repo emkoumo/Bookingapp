@@ -167,7 +167,9 @@ export default function EmailComposerModal({
     return new Promise(async (resolve, reject) => {
       try {
         // Map businessId to folder name
+        console.log('BusinessId:', businessId)
         const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        console.log('Selected folder:', businessFolder)
         const templatePath = `/email-templates/${businessFolder}/alternative-dates.png`
 
         // Load the base template image
@@ -246,26 +248,42 @@ export default function EmailComposerModal({
         const blob = await generateImageWithDates()
         console.log('Image generated successfully, blob size:', blob.size)
 
-        // Safari requires Promise, Chrome requires Blob
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-        console.log('Browser is Safari:', isSafari)
+        // Try clipboard API first
+        try {
+          // Safari requires Promise, Chrome requires Blob
+          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+          console.log('Browser is Safari:', isSafari)
 
-        if (isSafari) {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              'image/png': Promise.resolve(blob)
-            })
-          ])
-        } else {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              'image/png': blob
-            })
-          ])
+          if (isSafari) {
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                'image/png': Promise.resolve(blob)
+              })
+            ])
+          } else {
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                'image/png': blob
+              })
+            ])
+          }
+
+          console.log('Clipboard write successful')
+          showToast('✅ Εικόνα αντιγράφηκε!')
+        } catch (clipboardErr) {
+          console.error('Clipboard API failed, using fallback:', clipboardErr)
+          // Fallback: Download the image so user can save/share it
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'alternative-dates.png'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+
+          showToast('✅ Εικόνα λήφθηκε! Ανοίξτε και κάντε αντιγραφή')
         }
-
-        console.log('Clipboard write successful')
-        showToast('✅ Εικόνα αντιγράφηκε!')
       } else {
         // For other templates, use old method with price list image
         if (!includePriceList || !priceListImage) {
