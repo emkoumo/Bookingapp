@@ -222,12 +222,16 @@ export default function EmailComposerModal({
           }, 'image/png')
         }
 
-        img.onerror = () => {
+        img.onerror = (e) => {
+          console.error('Image load error:', e)
+          console.error('Template path:', templatePath)
           reject(new Error(`Failed to load template image: ${templatePath}`))
         }
 
+        console.log('Loading template image from:', templatePath)
         img.src = templatePath
       } catch (err) {
+        console.error('Canvas generation error:', err)
         reject(err)
       }
     })
@@ -238,10 +242,13 @@ export default function EmailComposerModal({
     try {
       // For alternative dates template, generate image with overlay
       if (editedTemplate.name === 'alternative_dates') {
+        console.log('Starting image generation...')
         const blob = await generateImageWithDates()
+        console.log('Image generated successfully, blob size:', blob.size)
 
         // Safari requires Promise, Chrome requires Blob
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+        console.log('Browser is Safari:', isSafari)
 
         if (isSafari) {
           await navigator.clipboard.write([
@@ -257,6 +264,7 @@ export default function EmailComposerModal({
           ])
         }
 
+        console.log('Clipboard write successful')
         showToast('✅ Εικόνα αντιγράφηκε!')
       } else {
         // For other templates, use old method with price list image
