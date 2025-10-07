@@ -112,28 +112,28 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
             placeholder="Όνομα Τράπεζας"
             value={details.bankName || ''}
             onChange={(e) => onChange('bankName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="Όνομα Λογαριασμού"
             value={details.accountName || ''}
             onChange={(e) => onChange('accountName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="Αριθμός Λογαριασμού / IBAN"
             value={details.accountNumber || details.iban || ''}
             onChange={(e) => onChange('accountNumber', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="BIC/SWIFT"
             value={details.swift || ''}
             onChange={(e) => onChange('swift', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
         </>
       )
@@ -145,28 +145,28 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
             placeholder="Πλήρες Όνομα"
             value={details.fullName || ''}
             onChange={(e) => onChange('fullName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="Χώρα"
             value={details.country || ''}
             onChange={(e) => onChange('country', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="Πόλη"
             value={details.city || ''}
             onChange={(e) => onChange('city', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
           <input
             type="text"
             placeholder="Τηλέφωνο"
             value={details.phone || ''}
             onChange={(e) => onChange('phone', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
           />
         </>
       )
@@ -249,7 +249,7 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
               })}
               <button
                 onClick={handleAdd}
-                className="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity text-sm"
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
               >
                 Προσθήκη
               </button>
@@ -302,7 +302,7 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
                         onChange={(e) => setPaymentMethods(paymentMethods.map(m =>
                           m.id === method.id ? { ...m, label: e.target.value } : m
                         ))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none font-semibold text-sm"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none font-semibold"
                       />
                       {renderFormFields(method.type, method.details, (field, value) => {
                         setPaymentMethods(paymentMethods.map(m =>
@@ -313,7 +313,7 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
                       })}
                       <button
                         onClick={() => handleSave(method)}
-                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors text-sm"
+                        className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
                       >
                         Αποθήκευση
                       </button>
