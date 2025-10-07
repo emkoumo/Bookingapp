@@ -245,45 +245,20 @@ export default function EmailComposerModal({
       // For alternative dates template, generate image with overlay
       if (editedTemplate.name === 'alternative_dates') {
         console.log('Starting image generation...')
-        const blob = await generateImageWithDates()
-        console.log('Image generated successfully, blob size:', blob.size)
 
-        // Try clipboard API first
-        try {
-          // Safari requires Promise, Chrome requires Blob
-          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-          console.log('Browser is Safari:', isSafari)
+        // CRITICAL for iOS: Create ClipboardItem IMMEDIATELY (synchronously) with a promise
+        // This must happen within the user gesture event handler
+        const clipboardItemPromise = new ClipboardItem({
+          'image/png': generateImageWithDates()
+        })
 
-          if (isSafari) {
-            await navigator.clipboard.write([
-              new ClipboardItem({
-                'image/png': Promise.resolve(blob)
-              })
-            ])
-          } else {
-            await navigator.clipboard.write([
-              new ClipboardItem({
-                'image/png': blob
-              })
-            ])
-          }
+        console.log('ClipboardItem created, writing to clipboard...')
 
-          console.log('Clipboard write successful')
-          showToast('✅ Εικόνα αντιγράφηκε!')
-        } catch (clipboardErr) {
-          console.error('Clipboard API failed, using fallback:', clipboardErr)
-          // Fallback: Download the image so user can save/share it
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = 'alternative-dates.png'
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
+        // Now write to clipboard - this maintains the user gesture context
+        await navigator.clipboard.write([clipboardItemPromise])
 
-          showToast('✅ Εικόνα λήφθηκε! Ανοίξτε και κάντε αντιγραφή')
-        }
+        console.log('Clipboard write successful')
+        showToast('✅ Εικόνα αντιγράφηκε!')
       } else {
         // For other templates, use old method with price list image
         if (!includePriceList || !priceListImage) {
