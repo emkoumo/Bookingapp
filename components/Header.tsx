@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import PaymentSettingsModal from './PaymentSettingsModal'
 
 interface Business {
   id: string
@@ -13,6 +14,7 @@ export default function Header() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string>('')
   const [isOpen, setIsOpen] = useState(false)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -78,66 +80,89 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Business Switcher Dropdown */}
-        <div className="relative">
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* Payment Settings Button */}
           <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
+            onClick={() => setIsPaymentModalOpen(true)}
+            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Μέθοδοι Πληρωμής"
           >
-            <span className="font-medium text-sm">
-              {getSelectedBusinessName()}
-            </span>
-            <svg
-              className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
           </button>
 
-          {/* Dropdown Menu */}
-          {isOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setIsOpen(false)}
-              />
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20">
-                {businesses.map((business) => (
-                  <button
-                    key={business.id}
-                    onClick={() => handleBusinessChange(business.id)}
-                    className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors ${
-                      selectedBusiness === business.id
-                        ? 'bg-blue-50 border-l-4 border-blue-500'
-                        : ''
-                    }`}
-                  >
-                    <div className="font-semibold text-gray-800">
-                      {business.name}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {business.email}
-                    </div>
-                    {selectedBusiness === business.id && (
-                      <div className="text-xs text-blue-600 font-medium mt-1">
-                        ✓ Ενεργή
+          {/* Business Switcher Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
+            >
+              <span className="font-medium text-sm">
+                {getSelectedBusinessName()}
+              </span>
+              <svg
+                className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+
+            {/* Dropdown Menu */}
+            {isOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setIsOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20">
+                  {businesses.map((business) => (
+                    <button
+                      key={business.id}
+                      onClick={() => handleBusinessChange(business.id)}
+                      className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors ${
+                        selectedBusiness === business.id
+                          ? 'bg-blue-50 border-l-4 border-blue-500'
+                          : ''
+                      }`}
+                    >
+                      <div className="font-semibold text-gray-800">
+                        {business.name}
                       </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {business.email}
+                      </div>
+                      {selectedBusiness === business.id && (
+                        <div className="text-xs text-blue-600 font-medium mt-1">
+                          ✓ Ενεργή
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Payment Settings Modal */}
+      {selectedBusiness && (
+        <PaymentSettingsModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          businessId={selectedBusiness}
+        />
+      )}
     </header>
   )
 }

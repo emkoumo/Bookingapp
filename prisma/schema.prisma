@@ -13,6 +13,7 @@ model Business {
   email      String
   properties Property[]
   emailTemplates EmailTemplate[]
+  paymentMethods PaymentMethod[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -61,4 +62,17 @@ model EmailTemplate {
   updatedAt             DateTime @updatedAt
 
   @@index([businessId, name])
+}
+
+model PaymentMethod {
+  id          String   @id @default(uuid())
+  businessId  String
+  type        String   // 'bank_business', 'bank_personal', 'western_union'
+  label       String   // Display name for the method
+  details     Json     // Flexible JSON field for different payment types
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
 }

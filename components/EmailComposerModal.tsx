@@ -23,6 +23,22 @@ interface DateRange {
   endDate: string
 }
 
+interface PaymentMethod {
+  id: string
+  type: string
+  label: string
+  details: {
+    bankName?: string
+    accountName?: string
+    accountNumber?: string
+    swift?: string
+    fullName?: string
+    country?: string
+    city?: string
+    phone?: string
+  }
+}
+
 interface EmailComposerModalProps {
   template: EmailTemplate
   onClose: () => void
@@ -53,6 +69,12 @@ export default function EmailComposerModal({
   const [uploadingImage, setUploadingImage] = useState(false)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
 
+  // Booking Confirmation states
+  const [checkInDate, setCheckInDate] = useState('')
+  const [checkOutDate, setCheckOutDate] = useState('')
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('')
+
   // Sync editedTemplate when template prop changes (after save)
   useEffect(() => {
     setEditedTemplate({
@@ -62,6 +84,26 @@ export default function EmailComposerModal({
     setIncludePriceList(template.includeImageByDefault ?? false)
     setPriceListImage(template.imageUrl || '')
   }, [template])
+
+  // Fetch payment methods for booking confirmation
+  useEffect(() => {
+    if (template.name === 'booking_confirmation') {
+      fetchPaymentMethods()
+    }
+  }, [template.name, businessId])
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const res = await fetch(`/api/payment-methods?businessId=${businessId}`)
+      const data = await res.json()
+      setPaymentMethods(data)
+      if (data.length > 0) {
+        setSelectedPaymentMethod(data[0].id)
+      }
+    } catch (error) {
+      console.error('Error fetching payment methods:', error)
+    }
+  }
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -108,12 +150,27 @@ export default function EmailComposerModal({
       } else {
         setPreviewImageUrl(null)
       }
+    } else if (template.name === 'booking_confirmation') {
+      if (checkInDate && checkOutDate && selectedPaymentMethod) {
+        generateBookingConfirmationImage()
+          .then(blob => {
+            const url = URL.createObjectURL(blob)
+            if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
+            setPreviewImageUrl(url)
+          })
+          .catch(err => {
+            console.error('Preview generation error:', err)
+            setPreviewImageUrl(null)
+          })
+      } else {
+        setPreviewImageUrl(null)
+      }
     }
     // Cleanup
     return () => {
       if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
     }
-  }, [dateRanges, template.name])
+  }, [dateRanges, checkInDate, checkOutDate, selectedPaymentMethod, template.name])
 
   // Format alternative dates for email
   const formatAlternativeDates = () => {
@@ -239,6 +296,181 @@ export default function EmailComposerModal({
     })
   }
 
+  // Generate availability confirmation image (simple, no overlay)
+  const generateAvailabilityConfirmationImage = async (): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        const templatePath = `/email-templates/${businessFolder}/availability-confirmation.png`
+
+        const response = await fetch(templatePath)
+        if (!response.ok) throw new Error('Failed to load template')
+        const blob = await response.blob()
+        resolve(blob)
+      } catch (err) {
+        console.error('Image load error:', err)
+        reject(err)
+      }
+    })
+  }
+
+  // Generate no availability image (simple, no overlay)
+  const generateNoAvailabilityImage = async (): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        const templatePath = `/email-templates/${businessFolder}/no-availability.png`
+
+        const response = await fetch(templatePath)
+        if (!response.ok) throw new Error('Failed to load template')
+        const blob = await response.blob()
+        resolve(blob)
+      } catch (err) {
+        console.error('Image load error:', err)
+        reject(err)
+      }
+    })
+  }
+
+  // Generate booking confirmation image with dates and payment overlay
+  const generateBookingConfirmationImage = async (): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        const templatePath = `/email-templates/${businessFolder}/booking-confirmation.png`
+
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')
+
+          if (!ctx) {
+            reject(new Error('Canvas not supported'))
+            return
+          }
+
+          // Draw base image
+          ctx.drawImage(img, 0, 0)
+
+          // Font setup - Geologica 21px
+          ctx.font = '300 21px Geologica, Arial, sans-serif'
+          ctx.textAlign = 'left'
+
+          // Date range overlay at x=24, y=294 (increased by 15px)
+          // Format: "From 10 to 20 Oct. 2025"
+          const checkInDateObj = new Date(checkInDate)
+          const checkOutDateObj = new Date(checkOutDate)
+          const checkInDay = checkInDateObj.getDate()
+          const checkOutDay = checkOutDateObj.getDate()
+          const month = format(checkOutDateObj, 'MMM', { locale: el })
+          const year = checkOutDateObj.getFullYear()
+          const dateRangeText = `From ${checkInDay} to ${checkOutDay} ${month}. ${year}`
+
+          ctx.fillStyle = '#ffffff' // White for the date range
+          ctx.font = '300 21px Geologica, Arial, sans-serif'
+          ctx.fillText(dateRangeText, 24, 294)
+
+          // Payment info overlay at x=24, y=428 (increased by 15px)
+          const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethod)
+          if (selectedMethod) {
+            let y = 428
+            const lineSpacing = 10
+
+            if (selectedMethod.type !== 'western_union') {
+              // Bank account
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Bank name: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.bankName || '', 145, y)
+
+              y += 21 + lineSpacing
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Account name: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.accountName || '', 175, y)
+
+              y += 21 + lineSpacing
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Account number: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.accountNumber || '', 195, y)
+
+              if (selectedMethod.details.swift) {
+                y += 21 + lineSpacing
+                ctx.fillStyle = '#C0C0C0'
+                ctx.font = '200 21px Geologica, Arial, sans-serif'
+                ctx.fillText('BIC/SWIFT: ', 24, y)
+                ctx.fillStyle = '#ffffff'
+                ctx.font = '300 21px Geologica, Arial, sans-serif'
+                ctx.fillText(selectedMethod.details.swift, 140, y)
+              }
+            } else {
+              // Western Union
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Full name: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.fullName || '', 130, y)
+
+              y += 21 + lineSpacing
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Country: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.country || '', 115, y)
+
+              y += 21 + lineSpacing
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('City: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.city || '', 75, y)
+
+              y += 21 + lineSpacing
+              ctx.fillStyle = '#C0C0C0'
+              ctx.font = '200 21px Geologica, Arial, sans-serif'
+              ctx.fillText('Phone: ', 24, y)
+              ctx.fillStyle = '#ffffff'
+              ctx.font = '300 21px Geologica, Arial, sans-serif'
+              ctx.fillText(selectedMethod.details.phone || '', 95, y)
+            }
+          }
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob)
+            } else {
+              reject(new Error('Failed to generate image'))
+            }
+          }, 'image/png')
+        }
+
+        img.onerror = (e) => {
+          console.error('Image load error:', e)
+          reject(new Error(`Failed to load template image: ${templatePath}`))
+        }
+
+        img.src = templatePath
+      } catch (err) {
+        console.error('Canvas generation error:', err)
+        reject(err)
+      }
+    })
+  }
+
   // Copy generated image with dates overlay
   const copyImageBlob = async () => {
     try {
@@ -258,6 +490,27 @@ export default function EmailComposerModal({
         await navigator.clipboard.write([clipboardItemPromise])
 
         console.log('Clipboard write successful')
+        showToast('✅ Εικόνα αντιγράφηκε!')
+      } else if (editedTemplate.name === 'availability_confirmation') {
+        // Simple copy without overlay
+        const clipboardItemPromise = new ClipboardItem({
+          'image/png': generateAvailabilityConfirmationImage()
+        })
+        await navigator.clipboard.write([clipboardItemPromise])
+        showToast('✅ Εικόνα αντιγράφηκε!')
+      } else if (editedTemplate.name === 'no_availability') {
+        // Simple copy without overlay
+        const clipboardItemPromise = new ClipboardItem({
+          'image/png': generateNoAvailabilityImage()
+        })
+        await navigator.clipboard.write([clipboardItemPromise])
+        showToast('✅ Εικόνα αντιγράφηκε!')
+      } else if (editedTemplate.name === 'booking_confirmation') {
+        // Generate with dates and payment overlay
+        const clipboardItemPromise = new ClipboardItem({
+          'image/png': generateBookingConfirmationImage()
+        })
+        await navigator.clipboard.write([clipboardItemPromise])
         showToast('✅ Εικόνα αντιγράφηκε!')
       } else {
         // For other templates, use old method with price list image
@@ -455,6 +708,142 @@ export default function EmailComposerModal({
                     <div className="text-center py-8">
                       <div className="text-gray-700 mb-2">
                         📅 Επιλέξτε ημερομηνίες για προεπισκόπηση
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Η εικόνα θα δημιουργηθεί αυτόματα
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : template.name === 'availability_confirmation' ? (
+            <>
+              {/* Availability Confirmation - Just show image preview */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Προεπισκόπηση
+                </label>
+                <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`/email-templates/${businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'}/availability-confirmation.png`}
+                      alt="Availability Confirmation"
+                      className="max-w-full h-auto rounded shadow-md"
+                    />
+                    <div className="text-sm text-green-600 mt-2 font-medium">
+                      ✓ Έτοιμο για αντιγραφή
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : template.name === 'no_availability' ? (
+            <>
+              {/* No Availability - Just show image preview */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Προεπισκόπηση
+                </label>
+                <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`/email-templates/${businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'}/no-availability.png`}
+                      alt="No Availability"
+                      className="max-w-full h-auto rounded shadow-md"
+                    />
+                    <div className="text-sm text-green-600 mt-2 font-medium">
+                      ✓ Έτοιμο για αντιγραφή
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : template.name === 'booking_confirmation' ? (
+            <>
+              {/* Booking Confirmation with dates and payment */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Ημερομηνίες Κράτησης
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <DatePicker
+                    value={checkInDate}
+                    onChange={setCheckInDate}
+                    placeholder="Check-in"
+                    isEditMode={false}
+                    minDate={format(new Date(), 'yyyy-MM-dd')}
+                    maxDate={checkOutDate || undefined}
+                    highlightDate={checkOutDate || undefined}
+                  />
+                  <DatePicker
+                    value={checkOutDate}
+                    onChange={setCheckOutDate}
+                    placeholder="Check-out"
+                    isEditMode={false}
+                    minDate={checkInDate || format(new Date(), 'yyyy-MM-dd')}
+                    highlightDate={checkInDate || undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method Selection */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Μέθοδος Πληρωμής
+                </label>
+                {paymentMethods.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {paymentMethods.map((method) => (
+                      <button
+                        key={method.id}
+                        type="button"
+                        onClick={() => setSelectedPaymentMethod(method.id)}
+                        className={`flex-1 min-w-[140px] p-2 rounded-lg border-2 transition-all ${
+                          selectedPaymentMethod === method.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-900 text-sm truncate">{method.label}</div>
+                          <div className="text-xs text-gray-600 truncate mt-0.5">
+                            {method.type === 'western_union'
+                              ? method.details.fullName
+                              : method.details.bankName}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
+                    Δεν υπάρχουν μέθοδοι πληρωμής. Προσθέστε μία από το εικονίδιο στην κορυφή.
+                  </div>
+                )}
+              </div>
+
+              {/* Live Preview */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Προεπισκόπηση
+                </label>
+                <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                  {previewImageUrl ? (
+                    <div className="flex flex-col items-center">
+                      <img
+                        src={previewImageUrl}
+                        alt="Preview with dates and payment"
+                        className="max-w-full h-auto rounded shadow-md"
+                      />
+                      <div className="text-sm text-green-600 mt-2 font-medium">
+                        ✓ Έτοιμο για αντιγραφή
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-gray-700 mb-2">
+                        📅 Επιλέξτε ημερομηνίες και μέθοδο πληρωμής
                       </div>
                       <div className="text-sm text-gray-600">
                         Η εικόνα θα δημιουργηθεί αυτόματα
@@ -709,6 +1098,43 @@ export default function EmailComposerModal({
                 Αντιγραφή
               </button>
             </div>
+          ) : template.name === 'availability_confirmation' || template.name === 'no_availability' ? (
+            /* Availability Confirmation & No Availability footer */
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+              >
+                Ακύρωση
+              </button>
+              <button
+                onClick={() => copyImageBlob()}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
+              >
+                Αντιγραφή
+              </button>
+            </div>
+          ) : template.name === 'booking_confirmation' ? (
+            /* Booking Confirmation footer */
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+              >
+                Ακύρωση
+              </button>
+              <button
+                onClick={() => copyImageBlob()}
+                disabled={!checkInDate || !checkOutDate || !selectedPaymentMethod}
+                className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-opacity shadow-md ${
+                  !checkInDate || !checkOutDate || !selectedPaymentMethod
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:opacity-90'
+                }`}
+              >
+                Αντιγραφή
+              </button>
+            </div>
           ) : !isEditingTemplate ? (
             /* Compose Email Footer */
             <div className="flex gap-3">
@@ -722,14 +1148,14 @@ export default function EmailComposerModal({
                 onClick={() => copyEmailText()}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
               >
-                📝 Αντιγραφή Κειμένου
+                Αντιγραφή Κειμένου
               </button>
               {(includePriceList && priceListImage) && (
                 <button
                   onClick={() => copyImageBlob()}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"
                 >
-                  🖼️ Αντιγραφή Εικόνας
+                  Αντιγραφή
                 </button>
               )}
             </div>
