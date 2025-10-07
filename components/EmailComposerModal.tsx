@@ -51,6 +51,7 @@ export default function EmailComposerModal({
   const [toastType, setToastType] = useState<'success' | 'error'>('success')
   const [isMobile, setIsMobile] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
 
   // Sync editedTemplate when template prop changes (after save)
   useEffect(() => {
@@ -88,6 +89,31 @@ export default function EmailComposerModal({
       dateRanges.map((range) => (range.id === id ? { ...range, [field]: value } : range))
     )
   }
+
+  // Generate preview image whenever dates change
+  useEffect(() => {
+    if (template.name === 'alternative_dates') {
+      const validRanges = dateRanges.filter(r => r.startDate && r.endDate)
+      if (validRanges.length > 0) {
+        generateImageWithDates()
+          .then(blob => {
+            const url = URL.createObjectURL(blob)
+            if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
+            setPreviewImageUrl(url)
+          })
+          .catch(err => {
+            console.error('Preview generation error:', err)
+            setPreviewImageUrl(null)
+          })
+      } else {
+        setPreviewImageUrl(null)
+      }
+    }
+    // Cleanup
+    return () => {
+      if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
+    }
+  }, [dateRanges, template.name])
 
   // Format alternative dates for email
   const formatAlternativeDates = () => {
@@ -136,42 +162,134 @@ export default function EmailComposerModal({
     }
   }
 
-  // Copy image as blob (works on iPhone Mail!)
-  const copyImageBlob = async () => {
-    if (!includePriceList || !priceListImage) {
-      showToast('❌ Δεν υπάρχει εικόνα', 'error')
-      return
-    }
+  // Generate image with alternative dates overlay (canvas-based)
+  const generateImageWithDates = async (): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Map businessId to folder name
+        const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        const templatePath = `/email-templates/${businessFolder}/alternative-dates.png`
 
-    try {
-      const imageUrl = priceListImage.startsWith('http')
-        ? priceListImage
-        : `${window.location.origin}${priceListImage}`
+        // Load the base template image
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
 
-      // Fetch image
-      const response = await fetch(imageUrl)
-      const blob = await response.blob()
+        img.onload = () => {
+          // Create canvas with same dimensions as image
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')
 
-      // Safari requires Promise, Chrome requires Blob
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+          if (!ctx) {
+            reject(new Error('Canvas not supported'))
+            return
+          }
 
-      if (isSafari) {
-        // Safari: Pass promise directly
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            [blob.type]: Promise.resolve(blob)
+          // Draw base image
+          ctx.drawImage(img, 0, 0)
+
+          // Configure text style - Evaggelia specs
+          ctx.font = '300 21px Geologica, Arial, sans-serif'
+          ctx.fillStyle = '#ffffff'
+          ctx.textAlign = 'left'
+
+          // Draw alternative dates
+          const validRanges = dateRanges.filter(r => r.startDate && r.endDate)
+          const startX = 24
+          let startY = 420
+          const lineSpacing = 8
+
+          validRanges.forEach((range, index) => {
+            // Format dates as "10-20 Oct 2025"
+            const startDate = new Date(range.startDate)
+            const endDate = new Date(range.endDate)
+            const startDay = startDate.getDate()
+            const endDay = endDate.getDate()
+            const month = format(endDate, 'MMM yyyy', { locale: el })
+            const dateText = `${index + 1}. ${startDay}-${endDay} ${month}`
+            const y = startY + (index * (21 + lineSpacing)) // 21px font height + 8px spacing
+            ctx.fillText(dateText, startX, y)
           })
-        ])
-      } else {
-        // Chrome/other: Pass blob directly
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            [blob.type]: blob
-          })
-        ])
+
+          // Convert canvas to blob
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob)
+            } else {
+              reject(new Error('Failed to generate image'))
+            }
+          }, 'image/png')
+        }
+
+        img.onerror = () => {
+          reject(new Error(`Failed to load template image: ${templatePath}`))
+        }
+
+        img.src = templatePath
+      } catch (err) {
+        reject(err)
       }
+    })
+  }
 
-      showToast('✅ Εικόνα αντιγράφηκε!')
+  // Copy generated image with dates overlay
+  const copyImageBlob = async () => {
+    try {
+      // For alternative dates template, generate image with overlay
+      if (editedTemplate.name === 'alternative_dates') {
+        const blob = await generateImageWithDates()
+
+        // Safari requires Promise, Chrome requires Blob
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+        if (isSafari) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'image/png': Promise.resolve(blob)
+            })
+          ])
+        } else {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'image/png': blob
+            })
+          ])
+        }
+
+        showToast('✅ Εικόνα αντιγράφηκε!')
+      } else {
+        // For other templates, use old method with price list image
+        if (!includePriceList || !priceListImage) {
+          showToast('❌ Δεν υπάρχει εικόνα', 'error')
+          return
+        }
+
+        const imageUrl = priceListImage.startsWith('http')
+          ? priceListImage
+          : `${window.location.origin}${priceListImage}`
+
+        const response = await fetch(imageUrl)
+        const blob = await response.blob()
+
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+        if (isSafari) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: Promise.resolve(blob)
+            })
+          ])
+        } else {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: blob
+            })
+          ])
+        }
+
+        showToast('✅ Εικόνα αντιγράφηκε!')
+      }
     } catch (err) {
       console.error('Copy image error:', err)
       showToast('❌ Σφάλμα αντιγραφής εικόνας', 'error')
@@ -260,37 +378,12 @@ export default function EmailComposerModal({
         </div>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-          {/* Toggle: Compose Email vs Edit Template */}
-          <div className="flex gap-2 border-b border-gray-200 pb-3">
-            <button
-              onClick={() => setIsEditingTemplate(false)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                !isEditingTemplate
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Σύνταξη Email
-            </button>
-            <button
-              onClick={() => setIsEditingTemplate(true)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                isEditingTemplate
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Επεξεργασία Προτύπου
-            </button>
-          </div>
-
-          {!isEditingTemplate ? (
-            /* Email Composer */
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+          {/* SIMPLIFIED UI for Alternative Dates - No tabs, no previews */}
+          {template.name === 'alternative_dates' ? (
             <>
               {/* Alternative Dates Builder */}
-              {template.name === 'alternative_dates' && (
-                <div>
+              <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">
                     Εναλλακτικές Ημερομηνίες
                   </label>
@@ -302,90 +395,153 @@ export default function EmailComposerModal({
                             value={range.startDate}
                             onChange={(date) => updateDateRange(range.id, 'startDate', date)}
                             placeholder="Από"
-                            isEditMode={true}
+                            isEditMode={false}
+                            minDate={format(new Date(), 'yyyy-MM-dd')}
+                            maxDate={range.endDate || undefined}
+                            highlightDate={range.endDate || undefined}
                           />
                           <DatePicker
                             value={range.endDate}
                             onChange={(date) => updateDateRange(range.id, 'endDate', date)}
                             placeholder="Έως"
-                            isEditMode={true}
+                            isEditMode={false}
+                            minDate={range.startDate || format(new Date(), 'yyyy-MM-dd')}
+                            highlightDate={range.startDate || undefined}
                           />
                         </div>
                         {/* Only show delete button after first range */}
                         {index > 0 && (
                           <button
                             onClick={() => removeDateRange(range.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
                         )}
-                        {/* Spacer for first range alignment */}
-                        {index === 0 && <div className="w-10"></div>}
                       </div>
                     ))}
-                    <button
-                      onClick={addDateRange}
-                      className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors font-medium"
-                    >
-                      + Προσθήκη Περιόδου
-                    </button>
+                    {dateRanges.length < 3 && (
+                      <button
+                        onClick={addDateRange}
+                        className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors font-medium"
+                      >
+                        + Προσθήκη Περιόδου (max 3)
+                      </button>
+                    )}
                   </div>
-                </div>
-              )}
+              </div>
 
-              {/* Price List Image */}
+              {/* Live Canvas Preview */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Λίστα Τιμών
+                  Προεπισκόπηση
                 </label>
-                <div className="space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includePriceList}
-                      onChange={(e) => setIncludePriceList(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Συμπερίληψη λίστας τιμών</span>
-                  </label>
-
-                  {includePriceList && (
-                    <div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        id="price-list-upload"
+                <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+                  {previewImageUrl ? (
+                    <div className="flex flex-col items-center">
+                      <img
+                        src={previewImageUrl}
+                        alt="Preview with dates"
+                        className="max-w-full h-auto rounded shadow-md"
                       />
-                      <label
-                        htmlFor="price-list-upload"
-                        className={`block w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-center cursor-pointer hover:border-blue-500 transition-colors ${
-                          uploadingImage ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        {uploadingImage ? (
-                          <span className="text-gray-600">Μεταφόρτωση...</span>
-                        ) : priceListImage ? (
-                          <div className="space-y-2">
-                            <img
-                              src={priceListImage}
-                              alt="Price List"
-                              className="max-h-32 mx-auto rounded"
-                            />
-                            <span className="text-sm text-green-600">✓ Εικόνα ανέβηκε</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-600">📤 Κλικ για ανέβασμα εικόνας</span>
-                        )}
-                      </label>
+                      <div className="text-sm text-green-600 mt-2 font-medium">
+                        ✓ Έτοιμο για αντιγραφή
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-gray-700 mb-2">
+                        📅 Επιλέξτε ημερομηνίες για προεπισκόπηση
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Η εικόνα θα δημιουργηθεί αυτόματα
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
+            </>
+          ) : (
+            /* OLD UI for non-canvas templates */
+            <>
+              {/* Toggle: Compose Email vs Edit Template */}
+              <div className="flex gap-2 border-b border-gray-200 pb-3">
+                <button
+                  onClick={() => setIsEditingTemplate(false)}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    !isEditingTemplate
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Σύνταξη Email
+                </button>
+                <button
+                  onClick={() => setIsEditingTemplate(true)}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    isEditingTemplate
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Επεξεργασία Προτύπου
+                </button>
+              </div>
+
+              {!isEditingTemplate ? (
+                <>
+                  {/* Price List Image */}
+                  <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Λίστα Τιμών
+                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includePriceList}
+                        onChange={(e) => setIncludePriceList(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Συμπερίληψη λίστας τιμών</span>
+                    </label>
+
+                    {includePriceList && (
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="price-list-upload"
+                        />
+                        <label
+                          htmlFor="price-list-upload"
+                          className={`block w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-center cursor-pointer hover:border-blue-500 transition-colors ${
+                            uploadingImage ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {uploadingImage ? (
+                            <span className="text-gray-600">Μεταφόρτωση...</span>
+                          ) : priceListImage ? (
+                            <div className="space-y-2">
+                              <img
+                                src={priceListImage}
+                                alt="Price List"
+                                className="max-h-32 mx-auto rounded"
+                              />
+                              <span className="text-sm text-green-600">✓ Εικόνα ανέβηκε</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-600">📤 Κλικ για ανέβασμα εικόνας</span>
+                          )}
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  </div>
 
               {/* Email Preview */}
               <div className="border-t-2 border-gray-200 pt-4">
@@ -525,11 +681,34 @@ export default function EmailComposerModal({
               </div>
             </>
           )}
+          </>
+        )}
         </div>
 
         {/* Footer - Sticky */}
         <div className="bg-white border-t border-gray-200 px-4 md:px-6 py-4 md:rounded-b-2xl sticky bottom-0">
-          {!isEditingTemplate ? (
+          {template.name === 'alternative_dates' ? (
+            /* Simple footer for Alternative Dates */
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+              >
+                Ακύρωση
+              </button>
+              <button
+                onClick={() => copyImageBlob()}
+                disabled={dateRanges.filter(r => r.startDate && r.endDate).length === 0}
+                className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-opacity shadow-md text-lg ${
+                  dateRanges.filter(r => r.startDate && r.endDate).length === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:opacity-90'
+                }`}
+              >
+                Αντιγραφή
+              </button>
+            </div>
+          ) : !isEditingTemplate ? (
             /* Compose Email Footer */
             <div className="flex gap-3">
               <button
@@ -544,7 +723,7 @@ export default function EmailComposerModal({
               >
                 📝 Αντιγραφή Κειμένου
               </button>
-              {includePriceList && priceListImage && (
+              {(includePriceList && priceListImage) && (
                 <button
                   onClick={() => copyImageBlob()}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity shadow-md"

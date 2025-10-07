@@ -11,9 +11,12 @@ interface DatePickerProps {
   className?: string
   disabledDates?: string[] // Array of dates in 'yyyy-MM-dd' format that should be disabled
   isEditMode?: boolean // If true, don't disable any dates
+  minDate?: string // Minimum selectable date in 'yyyy-MM-dd' format (e.g., today for check-in)
+  maxDate?: string // Maximum selectable date in 'yyyy-MM-dd' format
+  highlightDate?: string // Date to highlight (e.g., check-in date when selecting check-out)
 }
 
-export default function DatePicker({ value, onChange, placeholder = 'Επιλέξτε ημερομηνία', className = '', disabledDates = [], isEditMode = false }: DatePickerProps) {
+export default function DatePicker({ value, onChange, placeholder = 'Επιλέξτε ημερομηνία', className = '', disabledDates = [], isEditMode = false, minDate, maxDate, highlightDate }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(value ? new Date(value) : new Date())
   const [isMobile, setIsMobile] = useState(false)
@@ -97,12 +100,11 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
         </svg>
       </button>
 
-      {/* Calendar Dropdown */}
+      {/* Calendar Modal - Always full-screen for consistency */}
       {isOpen && (
         <>
-          {isMobile ? (
-            /* Mobile: Full-screen modal */
-            <div className="fixed inset-0 z-[80] bg-black bg-opacity-50 flex items-center justify-center p-4">
+          {/* Full-screen modal for all devices */}
+          <div className="fixed inset-0 z-[80] bg-black bg-opacity-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-scale-in">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-4 rounded-t-2xl">
@@ -149,7 +151,16 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
                       const isToday = isSameDay(day, new Date())
                       const isCurrentMonth = isSameMonth(day, currentMonth)
                       const dateStr = format(day, 'yyyy-MM-dd')
-                      const isDisabled = !isEditMode && disabledDates.includes(dateStr)
+                      const isHighlighted = highlightDate && dateStr === highlightDate
+
+                      // Check if date is disabled
+                      let isDisabled = !isEditMode && disabledDates.includes(dateStr)
+
+                      // Also disable if before minDate or after maxDate
+                      if (!isEditMode) {
+                        if (minDate && dateStr < minDate) isDisabled = true
+                        if (maxDate && dateStr > maxDate) isDisabled = true
+                      }
 
                       return (
                         <button
@@ -161,8 +172,9 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
                             aspect-square p-2 text-sm rounded-lg font-medium transition-all
                             ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
                             ${isSelected ? 'bg-blue-600 text-white font-bold shadow-md scale-110' : ''}
-                            ${isToday && !isSelected ? 'border-2 border-blue-600 text-blue-600 font-bold' : ''}
-                            ${!isSelected && isCurrentMonth && !isDisabled ? 'hover:bg-blue-50 active:bg-blue-100' : ''}
+                            ${isHighlighted && !isSelected ? 'bg-green-100 border-2 border-green-500 text-green-700 font-bold' : ''}
+                            ${isToday && !isSelected && !isHighlighted ? 'border-2 border-blue-600 text-blue-600 font-bold' : ''}
+                            ${!isSelected && !isHighlighted && isCurrentMonth && !isDisabled ? 'hover:bg-blue-50 active:bg-blue-100' : ''}
                             ${isDisabled ? 'bg-red-100 text-red-400 line-through cursor-not-allowed opacity-60' : ''}
                           `}
                         >
@@ -191,91 +203,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
                   </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            /* Desktop: Dropdown */
-            <div className="absolute z-50 mt-2 bg-white rounded-xl shadow-2xl border-2 border-gray-200 overflow-hidden w-80" style={{ left: 'auto', right: 'auto' }}>
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={handlePrevMonth}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <h3 className="text-lg font-bold">
-                    {format(currentMonth, 'MMMM yyyy', { locale: el })}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleNextMonth}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Calendar Grid */}
-              <div className="p-4">
-                {/* Week Days */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {weekDays.map((day) => (
-                    <div key={day} className="text-center text-xs font-bold text-gray-600 py-2">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Days */}
-                <div className="grid grid-cols-7 gap-1">
-                  {days.map((day, index) => {
-                    const isSelected = selectedDate && isSameDay(day, selectedDate)
-                    const isToday = isSameDay(day, new Date())
-                    const isCurrentMonth = isSameMonth(day, currentMonth)
-                    const dateStr = format(day, 'yyyy-MM-dd')
-                    const isDisabled = !isEditMode && disabledDates.includes(dateStr)
-
-                    return (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => handleDateClick(day)}
-                        disabled={isDisabled}
-                        className={`
-                          aspect-square p-2 text-sm rounded-lg font-medium transition-all
-                          ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
-                          ${isSelected ? 'bg-blue-600 text-white font-bold shadow-md' : ''}
-                          ${isToday && !isSelected ? 'border-2 border-blue-600 text-blue-600 font-bold' : ''}
-                          ${!isSelected && isCurrentMonth && !isDisabled ? 'hover:bg-blue-50' : ''}
-                          ${isDisabled ? 'bg-red-100 text-red-400 line-through cursor-not-allowed opacity-60' : ''}
-                        `}
-                      >
-                        {format(day, 'd')}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {/* Footer */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={handleToday}
-                    className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm transition-colors"
-                  >
-                    Σήμερα
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
         </>
       )}
     </div>

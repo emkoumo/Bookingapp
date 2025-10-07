@@ -218,6 +218,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 placeholder="Ημερομηνία"
                 disabledDates={disabledDates}
                 isEditMode={isEdit}
+                minDate={format(new Date(), 'yyyy-MM-dd')}
+                maxDate={formData.checkOut || undefined}
+                highlightDate={formData.checkOut || undefined}
               />
               <DatePicker
                 value={formData.checkOut}
@@ -225,6 +228,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 placeholder="Ημερομηνία"
                 disabledDates={disabledDates}
                 isEditMode={isEdit}
+                minDate={formData.checkIn || format(new Date(), 'yyyy-MM-dd')}
+                highlightDate={formData.checkIn || undefined}
               />
             </div>
           </div>
