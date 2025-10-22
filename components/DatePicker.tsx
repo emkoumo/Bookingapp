@@ -14,11 +14,17 @@ interface DatePickerProps {
   minDate?: string // Minimum selectable date in 'yyyy-MM-dd' format (e.g., today for check-in)
   maxDate?: string // Maximum selectable date in 'yyyy-MM-dd' format
   highlightDate?: string // Date to highlight (e.g., check-in date when selecting check-out)
+  initialMonth?: string // Date to use for initial month display (e.g., check-in date for check-out picker)
 }
 
-export default function DatePicker({ value, onChange, placeholder = 'Επιλέξτε ημερομηνία', className = '', disabledDates = [], isEditMode = false, minDate, maxDate, highlightDate }: DatePickerProps) {
+export default function DatePicker({ value, onChange, placeholder = 'Επιλέξτε ημερομηνία', className = '', disabledDates = [], isEditMode = false, minDate, maxDate, highlightDate, initialMonth }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [currentMonth, setCurrentMonth] = useState(value ? new Date(value) : new Date())
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    // Priority: value > initialMonth > today
+    if (value) return new Date(value)
+    if (initialMonth) return new Date(initialMonth)
+    return new Date()
+  })
   const [isMobile, setIsMobile] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -35,6 +41,17 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
 
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Update currentMonth when picker opens or when value/initialMonth changes
+  useEffect(() => {
+    if (isOpen) {
+      if (value) {
+        setCurrentMonth(new Date(value))
+      } else if (initialMonth) {
+        setCurrentMonth(new Date(initialMonth))
+      }
+    }
+  }, [isOpen, value, initialMonth])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

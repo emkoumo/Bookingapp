@@ -230,6 +230,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 isEditMode={isEdit}
                 minDate={formData.checkIn || format(new Date(), 'yyyy-MM-dd')}
                 highlightDate={formData.checkIn || undefined}
+                initialMonth={formData.checkIn || undefined}
               />
             </div>
           </div>
