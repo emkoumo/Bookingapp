@@ -2,30 +2,40 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Keepalive endpoint to prevent Neon database from auto-suspending
- * 
+ * Keepalive endpoint to prevent both Supabase database and Vercel from auto-suspending
+ *
  * USAGE:
- * - Call this endpoint every 4 minutes to keep database warm
- * - Can be triggered by Vercel Cron or external service (cron-job.org)
- * 
+ * - Triggered by Vercel Cron every 5 minutes (configured in vercel.json)
+ * - Keeps database connection warm (prevents Supabase free tier pause)
+ * - Keeps Vercel serverless function warm (prevents cold starts)
+ *
  * COST ANALYSIS:
- * - Vercel Cron: ~360 calls/day = ~10,800/month (1% of 1M free tier)
- * - External Cron: 0 cost to Vercel
- * 
- * RECOMMENDATION:
- * - Only use if you need sub-second response times always
- * - For personal/internal tools with <5 users, NOT RECOMMENDED
- * - 500ms cold start is acceptable for most use cases
+ * - Vercel Cron: ~288 calls/day = ~8,640/month (<1% of 1M free tier)
+ * - Function invocations: Minimal impact on compute hours
+ *
+ * HOW IT WORKS:
+ * - Vercel Cron calls this endpoint every 5 minutes
+ * - This keeps the Vercel function "warm" (prevents cold starts)
+ * - The database query keeps Supabase connection active (prevents auto-pause)
  */
 export async function GET() {
   try {
-    // Simple query to keep connection alive
+    const startTime = Date.now()
+
+    // Simple query to keep database connection alive
     await prisma.$queryRaw`SELECT 1`
-    
+
+    const duration = Date.now() - startTime
+
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      message: 'Database connection active'
+      message: 'Keepalive successful',
+      services: {
+        database: 'active',
+        vercel: 'active'
+      },
+      queryDuration: `${duration}ms`
     })
   } catch (error) {
     console.error('Keepalive failed:', error)
@@ -33,7 +43,11 @@ export async function GET() {
       {
         status: 'error',
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        services: {
+          database: 'error',
+          vercel: 'active'
+        }
       },
       { status: 500 }
     )
