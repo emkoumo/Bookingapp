@@ -17,6 +17,8 @@ import { prisma } from '@/lib/prisma'
  * - Vercel Cron calls this endpoint every 5 minutes
  * - This keeps the Vercel function "warm" (prevents cold starts)
  * - The database query keeps Supabase connection active (prevents auto-pause)
+ *
+ * Test deployment trigger
  */
 export async function GET() {
   try {
