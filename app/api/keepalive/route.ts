@@ -18,7 +18,6 @@ import { prisma } from '@/lib/prisma'
  * - This keeps the Vercel function "warm" (prevents cold starts)
  * - The database query keeps Supabase connection active (prevents auto-pause)
  *
- * Test deployment trigger
  */
 export async function GET() {
   try {
