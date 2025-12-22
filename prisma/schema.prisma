@@ -8,45 +8,55 @@ datasource db {
 }
 
 model Business {
-  id         String   @id @default(uuid())
-  name       String
-  email      String
-  properties Property[]
+  id             String          @id @default(uuid())
+  name           String
+  email          String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   emailTemplates EmailTemplate[]
   paymentMethods PaymentMethod[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  properties     Property[]
 }
 
 model Property {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   businessId  String
   name        String
   description String?
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  icalUrl     String?
   bookings    Booking[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  priceRanges PriceRange[]
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
 model Booking {
-  id           String   @id @default(uuid())
-  propertyId   String
-  customerName String
-  contactInfo  String?
-  checkIn      DateTime @db.Date
-  checkOut     DateTime @db.Date
-  deposit      String?
-  notes        String?
-  status       String   @default("active")
-  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  propertyId             String
+  customerName           String
+  contactInfo            String?
+  checkIn                DateTime @db.Date
+  checkOut               DateTime @db.Date
+  deposit                String?
+  notes                  String?
+  status                 String   @default("active")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  externalId             String?
+  source                 String   @default("manual")
+  totalPrice             Decimal? @db.Decimal(10, 2)
+  advancePayment         Decimal? @db.Decimal(10, 2)
+  remainingBalance       Decimal? @db.Decimal(10, 2)
+  advancePaymentMethod   String?
+  advancePaymentDate     DateTime? @db.Date
+  property               Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([checkIn])
   @@index([checkOut])
   @@index([status])
+  @@index([externalId])
 }
 
 model EmailTemplate {
@@ -56,23 +66,37 @@ model EmailTemplate {
   subject               String
   body                  String
   imageUrl              String?
-  includeImageByDefault Boolean  @default(false)
-  business              Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  includeImageByDefault Boolean  @default(false)
+  business              Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, name])
 }
 
 model PaymentMethod {
-  id          String   @id @default(uuid())
-  businessId  String
-  type        String   // 'bank_business', 'bank_personal', 'western_union'
-  label       String   // Display name for the method
-  details     Json     // Flexible JSON field for different payment types
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  businessId String
+  type       String
+  label      String
+  details    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
+}
+
+model PriceRange {
+  id            String   @id @default(uuid())
+  propertyId    String
+  dateFrom      DateTime @db.Date
+  dateTo        DateTime @db.Date
+  pricePerNight Decimal  @db.Decimal(10, 2)
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([propertyId, dateFrom, dateTo])
 }

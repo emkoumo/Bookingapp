@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import PriceListTab from './PriceListTab'
 
 interface PaymentMethod {
   id: string
@@ -19,14 +20,21 @@ interface PaymentMethod {
   }
 }
 
-interface PaymentSettingsModalProps {
+interface Property {
+  id: string
+  name: string
+}
+
+interface FinancialManagementModalProps {
   isOpen: boolean
   onClose: () => void
   businessId: string
 }
 
-export default function PaymentSettingsModal({ isOpen, onClose, businessId }: PaymentSettingsModalProps) {
+export default function FinancialManagementModal({ isOpen, onClose, businessId }: FinancialManagementModalProps) {
+  const [mainTab, setMainTab] = useState<'price_list' | 'payment_methods'>('price_list')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'bank_business' | 'bank_personal' | 'western_union'>('bank_business')
@@ -37,8 +45,20 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
   useEffect(() => {
     if (isOpen && businessId) {
       fetchPaymentMethods()
+      fetchProperties()
     }
   }, [isOpen, businessId])
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = originalOverflow
+      }
+    }
+  }, [isOpen])
 
   const fetchPaymentMethods = async () => {
     try {
@@ -49,6 +69,16 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
       console.error('Error fetching payment methods:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchProperties = async () => {
+    try {
+      const res = await fetch(`/api/properties?businessId=${businessId}`)
+      const data = await res.json()
+      setProperties(data)
+    } catch (error) {
+      console.error('Error fetching properties:', error)
     }
   }
 
@@ -186,12 +216,12 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 md:flex md:items-center md:justify-center z-[70] md:p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 md:flex md:items-center md:justify-center z-[70] md:p-4 overflow-y-auto">
       <div className="bg-white h-full md:h-auto md:rounded-2xl shadow-2xl md:max-w-3xl w-full md:my-8 animate-scale-in flex flex-col md:max-h-[90vh]">
         {/* Header - Sticky on mobile */}
         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-4 md:px-6 py-4 md:rounded-t-2xl sticky top-0 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg md:text-xl font-bold text-white">Μέθοδοι Πληρωμής</h2>
+            <h2 className="text-lg md:text-xl font-bold text-white">Διαχείριση Οικονομικών</h2>
             <button
               onClick={onClose}
               className="text-white hover:opacity-80 transition-opacity text-2xl leading-none"
@@ -201,8 +231,33 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
           </div>
         </div>
 
-        {/* Tabs - Sticky below header */}
-        <div className="flex border-b border-gray-200 bg-gray-50 sticky top-[60px] z-10">
+        {/* Main Tabs - Sticky below header */}
+        <div className="flex border-b border-gray-300 bg-gray-100 sticky top-[60px] z-10">
+          <button
+            onClick={() => setMainTab('price_list')}
+            className={`flex-1 px-4 py-3 text-sm md:text-base font-bold transition-colors ${
+              mainTab === 'price_list'
+                ? 'text-blue-600 border-b-4 border-blue-600 bg-white'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Τιμοκατάλογος
+          </button>
+          <button
+            onClick={() => setMainTab('payment_methods')}
+            className={`flex-1 px-4 py-3 text-sm md:text-base font-bold transition-colors ${
+              mainTab === 'payment_methods'
+                ? 'text-blue-600 border-b-4 border-blue-600 bg-white'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Μέθοδοι Πληρωμής
+          </button>
+        </div>
+
+        {/* Sub-Tabs for Payment Methods - Sticky below main tabs, only visible when payment_methods tab is active */}
+        {mainTab === 'payment_methods' && (
+          <div className="flex border-b border-gray-200 bg-gray-50 sticky top-[110px] z-10">
           <button
             onClick={() => setActiveTab('bank_business')}
             className={`flex-1 px-3 md:px-4 py-3 text-xs md:text-sm font-medium transition-colors ${
@@ -234,9 +289,14 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
             Western Union
           </button>
         </div>
+        )}
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          {mainTab === 'price_list' ? (
+            <PriceListTab properties={properties} businessId={businessId} />
+          ) : (
+            <>
           {/* Add New */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
             <h3 className="font-bold text-gray-900 mb-3 text-sm">Προσθήκη Νέας Μεθόδου</h3>
@@ -341,6 +401,8 @@ export default function PaymentSettingsModal({ isOpen, onClose, businessId }: Pa
               ))
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

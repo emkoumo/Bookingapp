@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import PaymentSettingsModal from './PaymentSettingsModal'
+import FinancialManagementModal from './FinancialManagementModal'
 
 interface Business {
   id: string
@@ -157,7 +157,7 @@ export default function Header() {
 
       {/* Payment Settings Modal */}
       {selectedBusiness && (
-        <PaymentSettingsModal
+        <FinancialManagementModal
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
           businessId={selectedBusiness}

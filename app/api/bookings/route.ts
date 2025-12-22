@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { eachDayOfInterval, parseISO, format } from 'date-fns'
 
 export async function GET(request: Request) {
   try {
@@ -42,7 +43,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { propertyId, customerName, contactInfo, checkIn, checkOut, deposit, notes, status } = body
+    const {
+      propertyId,
+      customerName,
+      contactInfo,
+      checkIn,
+      checkOut,
+      deposit,
+      notes,
+      status,
+      totalPrice,
+      advancePayment,
+      remainingBalance,
+      advancePaymentMethod,
+      advancePaymentDate
+    } = body
 
     if (!propertyId || !customerName || !checkIn || !checkOut) {
       return NextResponse.json(
@@ -86,6 +101,52 @@ export async function POST(request: Request) {
       )
     }
 
+    // Price validation: Only validate if totalPrice is not provided (custom price case)
+    let calculatedTotal = 0
+
+    if (!totalPrice) {
+      // Only validate prices from database if no custom totalPrice is provided
+      const checkInDate = parseISO(checkIn)
+      const checkOutDate = parseISO(checkOut)
+
+      const dates = eachDayOfInterval({
+        start: checkInDate,
+        end: new Date(checkOutDate.getTime() - 24 * 60 * 60 * 1000) // Exclude checkout day
+      })
+
+      const missingDates: string[] = []
+
+      for (const date of dates) {
+        const priceRange = await prisma.priceRange.findFirst({
+          where: {
+            propertyId,
+            AND: [
+              { dateFrom: { lte: date } },
+              { dateTo: { gte: date } }
+            ]
+          }
+        })
+
+        if (!priceRange) {
+          missingDates.push(format(date, 'yyyy-MM-dd'))
+        } else {
+          calculatedTotal += parseFloat(priceRange.pricePerNight.toString())
+        }
+      }
+
+      // If any dates are missing prices, block the booking
+      if (missingDates.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες',
+            missingDates
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Create booking with calculated prices
     const booking = await prisma.booking.create({
       data: {
         propertyId,
@@ -96,6 +157,11 @@ export async function POST(request: Request) {
         deposit: deposit || null,
         notes: notes || null,
         status: status || 'active',
+        totalPrice: totalPrice || calculatedTotal,
+        advancePayment: advancePayment || null,
+        remainingBalance: remainingBalance || (totalPrice ? totalPrice - (advancePayment || 0) : calculatedTotal),
+        advancePaymentMethod: advancePaymentMethod || null,
+        advancePaymentDate: advancePaymentDate ? new Date(advancePaymentDate) : null
       },
       include: {
         property: {

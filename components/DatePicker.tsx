@@ -101,21 +101,47 @@ export default function DatePicker({ value, onChange, placeholder = 'Επιλέ�
   const days = getDaysInMonth()
   const weekDays = ['Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα', 'Κυ']
 
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onChange('')
+  }
+
   return (
     <div ref={containerRef} className="relative">
       {/* Input Field */}
-      <button
-        type="button"
+      <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-left flex items-center justify-between bg-white hover:border-gray-400 transition-colors ${className}`}
+        className={`w-full h-[52px] px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-left flex items-center justify-between bg-white hover:border-gray-400 transition-colors cursor-pointer ${className}`}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setIsOpen(!isOpen)
+          }
+        }}
       >
-        <span className={selectedDate ? 'text-gray-900' : 'text-gray-500'}>
+        <span className={`whitespace-nowrap overflow-hidden text-ellipsis ${selectedDate ? 'text-gray-900 text-base' : 'text-gray-500 text-base'}`}>
           {selectedDate ? format(selectedDate, 'd MMM yyyy', { locale: el }) : placeholder}
         </span>
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </button>
+        <div className="flex items-center gap-2">
+          {selectedDate && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="p-1 hover:bg-gray-200 rounded-full transition-colors z-10"
+              title="Καθαρισμός"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+      </div>
 
       {/* Calendar Modal - Always full-screen for consistency */}
       {isOpen && (

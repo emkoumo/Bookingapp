@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns'
 import { el } from 'date-fns/locale'
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import html2canvas from 'html2canvas'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
@@ -23,6 +23,11 @@ interface Booking {
   checkOut: string
   deposit: string | null
   status: string
+  totalPrice?: number
+  advancePayment?: number
+  remainingBalance?: number
+  advancePaymentMethod?: string
+  advancePaymentDate?: string
   property: {
     id: string
     name: string
@@ -37,11 +42,13 @@ function ReportsContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState<string>('all')
-  const [filterMode, setFilterMode] = useState<'next10days' | 'custom'>('next10days')
+  const [filterMode, setFilterMode] = useState<'all' | 'next10days' | 'custom'>('all')
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'))
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const reportContentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (businessId) {
@@ -79,12 +86,16 @@ function ReportsContent() {
       return false
     }
 
-    // Filter by date range (check-in date only)
-    const checkIn = parseISO(booking.checkIn)
-    const start = parseISO(startDate)
-    const end = parseISO(endDate)
+    // Filter by date range (check-in date only) - Skip if filterMode is 'all'
+    if (filterMode !== 'all') {
+      const checkIn = parseISO(booking.checkIn)
+      const start = parseISO(startDate)
+      const end = parseISO(endDate)
 
-    return isWithinInterval(checkIn, { start, end })
+      return isWithinInterval(checkIn, { start, end })
+    }
+
+    return true
   })
 
   // Group bookings by check-in date
@@ -99,6 +110,19 @@ function ReportsContent() {
 
   const sortedDates = Object.keys(groupedBookings).sort()
 
+  // Calculate financial totals
+  const financialSummary = filteredBookings.reduce((acc, booking) => {
+    return {
+      totalRevenue: acc.totalRevenue + (booking.totalPrice ? Number(booking.totalPrice) : 0),
+      totalAdvances: acc.totalAdvances + (booking.advancePayment ? Number(booking.advancePayment) : 0),
+      totalRemaining: acc.totalRemaining + (booking.remainingBalance ? Number(booking.remainingBalance) : 0)
+    }
+  }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
+
+  const handleShowAll = () => {
+    setFilterMode('all')
+  }
+
   const handleNext10Days = () => {
     setFilterMode('next10days')
     setStartDate(format(new Date(), 'yyyy-MM-dd'))
@@ -106,14 +130,17 @@ function ReportsContent() {
   }
 
   const exportCSV = () => {
-    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Επαφή', 'Προκαταβολή', 'Κατάσταση']
+    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
     const rows = filteredBookings.map((b) => [
       b.customerName,
       b.property.name,
       format(new Date(b.checkIn), 'dd/MM/yyyy'),
       format(new Date(b.checkOut), 'dd/MM/yyyy'),
       b.contactInfo || '',
-      b.deposit || '',
+      b.totalPrice ? Number(b.totalPrice).toFixed(2) : (b.deposit || '-'),
+      b.advancePayment ? Number(b.advancePayment).toFixed(2) : '-',
+      b.advancePaymentMethod || '-',
+      b.remainingBalance ? Number(b.remainingBalance).toFixed(2) : '-',
       b.status,
     ])
 
@@ -125,34 +152,76 @@ function ReportsContent() {
     link.click()
   }
 
-  const exportPDF = () => {
-    const doc = new jsPDF()
+  const exportPDF = async () => {
+    if (!reportContentRef.current) return
 
-    doc.setFontSize(18)
-    doc.text('Αναφορά Κρατήσεων', 14, 22)
+    setExporting(true)
+    setToast({ message: 'Δημιουργία PDF...', type: 'info' })
 
-    doc.setFontSize(11)
-    doc.text(`Περίοδος: ${format(new Date(startDate), 'dd/MM/yyyy')} - ${format(new Date(endDate), 'dd/MM/yyyy')}`, 14, 30)
+    try {
+      // Capture the report content as canvas with optimized settings
+      const canvas = await html2canvas(reportContentRef.current, {
+        scale: 1.2, // Reduced from 2 to 1.2 for smaller file size while maintaining readability
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: reportContentRef.current.scrollWidth,
+        windowHeight: reportContentRef.current.scrollHeight,
+      })
 
-    const tableData = filteredBookings.map((b) => [
-      b.customerName,
-      b.property.name,
-      format(new Date(b.checkIn), 'dd/MM/yyyy'),
-      format(new Date(b.checkOut), 'dd/MM/yyyy'),
-      b.contactInfo || '',
-      b.deposit || '',
-      b.status,
-    ])
+      // Calculate PDF dimensions
+      const imgWidth = 210 // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-    autoTable(doc, {
-      head: [['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Επαφή', 'Προκαταβολή', 'Κατάσταση']],
-      body: tableData,
-      startY: 35,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [59, 130, 246] },
-    })
+      // Create PDF with compression
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true // Enable PDF compression
+      })
 
-    doc.save(`bookings-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+      // If content is longer than one page, split it
+      const pageHeight = 297 // A4 height in mm
+      let heightLeft = imgHeight
+      let position = 0
+
+      // Add first page
+      pdf.addImage(
+        canvas.toDataURL('image/png'),
+        'PNG',
+        0,
+        position,
+        imgWidth,
+        imgHeight
+      )
+      heightLeft -= pageHeight
+
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(
+          canvas.toDataURL('image/png'),
+          'PNG',
+          0,
+          position,
+          imgWidth,
+          imgHeight
+        )
+        heightLeft -= pageHeight
+      }
+
+      // Save the PDF
+      pdf.save(`bookings-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+
+      setToast({ message: 'PDF δημιουργήθηκε επιτυχώς!', type: 'success' })
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      setToast({ message: 'Σφάλμα κατά τη δημιουργία PDF', type: 'error' })
+    } finally {
+      setExporting(false)
+    }
   }
 
   if (!businessId) {
@@ -204,9 +273,20 @@ function ReportsContent() {
                 </h1>
                 <button
                   onClick={exportPDF}
-                  className="px-2.5 py-2 md:px-3 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                  disabled={exporting}
+                  className="px-2.5 py-2 md:px-3 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                 >
-                  PDF
+                  {exporting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span className="hidden md:inline">Δημιουργία...</span>
+                    </>
+                  ) : (
+                    'PDF'
+                  )}
                 </button>
               </div>
             </div>
@@ -216,52 +296,79 @@ function ReportsContent() {
               <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
                 <button
                   onClick={() => setSelectedProperty('all')}
-                  className={`px-2.5 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors ${
+                  className={`px-3 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${
                     selectedProperty === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>Όλα</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    selectedProperty === 'all'
+                      ? 'bg-white text-blue-600'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {filteredBookings.filter(b => true).length}
+                  </span>
+                </button>
+                {properties.map((prop) => {
+                  const propBookingCount = filteredBookings.filter(b => b.property.id === prop.id).length
+                  return (
+                    <button
+                      key={prop.id}
+                      onClick={() => setSelectedProperty(prop.id)}
+                      className={`px-3 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${
+                        selectedProperty === prop.id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span>{prop.name}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        selectedProperty === prop.id
+                          ? 'bg-white text-blue-600'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {propBookingCount}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Filter Mode Buttons - Single Row */}
+            <div className="py-3 border-b border-gray-200 px-4">
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={handleShowAll}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
+                    filterMode === 'all'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   Όλα
                 </button>
-                {properties.map((prop) => (
-                  <button
-                    key={prop.id}
-                    onClick={() => setSelectedProperty(prop.id)}
-                    className={`px-2.5 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors ${
-                      selectedProperty === prop.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {prop.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Filter Mode Buttons - Single Row */}
-            <div className="py-3 border-b border-gray-200 px-4">
-              <div className="flex gap-2">
                 <button
                   onClick={handleNext10Days}
-                  className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
                     filterMode === 'next10days'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Επόμενες 10 Ημέρες
+                  Επόμενες 10
                 </button>
                 <button
                   onClick={() => setFilterMode('custom')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
                     filterMode === 'custom'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Επιλογή Περιόδου
+                  Περίοδος
                 </button>
               </div>
             </div>
@@ -288,13 +395,52 @@ function ReportsContent() {
               </div>
             )}
 
-            {/* Check-ins Count */}
-            <div className="px-4 py-3 border-b border-gray-200">
-              <div className="bg-blue-50 p-4 rounded-lg text-center max-w-xs mx-auto">
-                <div className="text-3xl md:text-4xl font-bold text-blue-600">{filteredBookings.length}</div>
-                <div className="text-sm md:text-base text-gray-700 font-medium">Αναμενόμενα Check-ins</div>
-              </div>
+            {/* Report Content - This will be captured for PDF */}
+            <div ref={reportContentRef}>
+            {/* Report Header with Date Range */}
+            <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">Αναφορά Κρατήσεων</h2>
+              <p className="text-sm text-gray-600 text-center">
+                {filterMode === 'all' ? (
+                  'Όλες οι κρατήσεις'
+                ) : (
+                  `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
+                )}
+              </p>
             </div>
+
+            {/* Check-ins Count */}
+            {filteredBookings.length > 0 && (
+              <div className="px-4 py-2 border-b border-gray-200">
+                <div className="text-center">
+                  <span className="text-sm text-gray-600">
+                    {filterMode === 'all' ? 'Σύνολο: ' : 'Αναμενόμενα: '}
+                  </span>
+                  <span className="text-sm font-bold text-blue-600">{filteredBookings.length} κρατήσεις</span>
+                </div>
+              </div>
+            )}
+
+            {/* Financial Summary */}
+            {filteredBookings.length > 0 && (
+              <div className="px-4 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Οικονομική Περίληψη</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                    <div className="text-xs text-blue-700 font-semibold mb-1">Σύνολο Εσόδων</div>
+                    <div className="text-2xl font-bold text-blue-600">€{financialSummary.totalRevenue.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                    <div className="text-xs text-green-700 font-semibold mb-1">Σύνολο Προκαταβολών</div>
+                    <div className="text-2xl font-bold text-green-600">€{financialSummary.totalAdvances.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-lg border border-amber-200">
+                    <div className="text-xs text-amber-700 font-semibold mb-1">Σύνολο Υπολοίπων</div>
+                    <div className="text-2xl font-bold text-amber-600">€{financialSummary.totalRemaining.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Bookings Content */}
             <div className="px-4 py-3">
@@ -305,43 +451,112 @@ function ReportsContent() {
               ) : (
                 <>
                   {/* Mobile View - Cards grouped by date */}
-                  <div className="md:hidden space-y-4">
-                    {sortedDates.map((date) => (
-                      <div key={date} className="space-y-2">
+                  <div className="md:hidden space-y-6">
+                    {sortedDates.map((date, dateIndex) => (
+                      <div key={date}>
+                        {dateIndex > 0 && <div className="border-t border-gray-300 my-4"></div>}
+                        <div className="space-y-3">
                         {/* Date Header */}
-                        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-2 rounded-lg font-bold text-sm">
-                          {format(parseISO(date), 'EEEE, dd MMMM yyyy', { locale: el })}
-                          <span className="ml-2 bg-white text-indigo-600 px-2 py-0.5 rounded-full text-xs">
-                            {groupedBookings[date].length}
-                          </span>
+                        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-xl font-bold text-base shadow-lg border-2 border-indigo-700">
+                          <div className="flex items-center justify-between">
+                            <span>{format(parseISO(date), 'EEEE, dd MMMM yyyy', { locale: el })}</span>
+                            <span className="bg-white text-indigo-600 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+                              {groupedBookings[date].length}
+                            </span>
+                          </div>
                         </div>
                         {/* Bookings for this date */}
                         {groupedBookings[date].map((booking) => (
-                          <div key={booking.id} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-bold text-base text-gray-900">{booking.customerName}</h3>
-                              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                          <div key={booking.id} className="bg-white border-2 border-gray-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                            {/* Header with Customer Name and Property */}
+                            <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
+                              <h3 className="font-bold text-lg text-gray-900 mb-2">{booking.customerName}</h3>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-600 text-white">
                                 {booking.property.name}
                               </span>
                             </div>
-                            <div className="space-y-1 text-sm text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                <span className="font-medium">Check-out:</span>
-                                <span>{format(parseISO(booking.checkOut), 'd MMM yyyy', { locale: el })}</span>
-                              </div>
-                              {booking.contactInfo && (
+
+                            {/* Content */}
+                            <div className="p-4 space-y-3">
+                              {/* Check-in and Check-out Dates */}
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                {/* Check-in */}
                                 <div className="flex items-center gap-2">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                  </svg>
-                                  <span>{booking.contactInfo}</span>
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 flex-shrink-0">
+                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500 font-medium">Check-in</div>
+                                    <div className="font-semibold text-gray-900 whitespace-nowrap">{format(parseISO(booking.checkIn), 'd MMM yyyy', { locale: el })}</div>
+                                  </div>
+                                </div>
+
+                                {/* Check-out */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 flex-shrink-0">
+                                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500 font-medium">Check-out</div>
+                                    <div className="font-semibold text-gray-900 whitespace-nowrap">{format(parseISO(booking.checkOut), 'd MMM yyyy', { locale: el })}</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Contact Info */}
+                              {booking.contactInfo && (
+                                <div className="flex items-center gap-3 text-sm">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100">
+                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-500 font-medium">Επαφή</div>
+                                    <div className="font-semibold text-gray-900">{booking.contactInfo}</div>
+                                  </div>
                                 </div>
                               )}
-                              {booking.deposit && (
-                                <div className="flex items-center gap-2 text-green-600 font-medium">
+
+                              {/* Financial info */}
+                              {booking.totalPrice && (
+                                <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg p-3 space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-700">Σύνολο</span>
+                                    <span className="text-base font-bold text-blue-600">€{Number(booking.totalPrice).toFixed(2)}</span>
+                                  </div>
+                                  {booking.advancePayment && booking.advancePayment > 0 && (
+                                    <>
+                                      <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                        <span className="text-sm font-bold text-gray-700">Προκαταβολή</span>
+                                        <span className="text-base font-bold text-green-600">€{Number(booking.advancePayment).toFixed(2)}</span>
+                                      </div>
+                                      {booking.advancePaymentMethod && (
+                                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                                          <span className="px-2 py-0.5 bg-gray-200 rounded font-medium">{booking.advancePaymentMethod}</span>
+                                          {booking.advancePaymentDate && (
+                                            <span>{format(parseISO(booking.advancePaymentDate), 'd MMM yyyy', { locale: el })}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {booking.remainingBalance && booking.remainingBalance > 0 && (
+                                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                          <span className="text-sm font-bold text-gray-700">Υπόλοιπο</span>
+                                          <span className="text-base font-bold text-amber-600">€{Number(booking.remainingBalance).toFixed(2)}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Legacy deposit field */}
+                              {!booking.totalPrice && booking.deposit && (
+                                <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-2 text-sm text-gray-600">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
@@ -351,6 +566,7 @@ function ReportsContent() {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -365,7 +581,10 @@ function ReportsContent() {
                           <th className="p-3 text-left">Κατάλυμα</th>
                           <th className="p-3 text-left">Check-out</th>
                           <th className="p-3 text-left">Επαφή</th>
-                          <th className="p-3 text-left">Προκαταβολή</th>
+                          <th className="p-3 text-right">Σύνολο</th>
+                          <th className="p-3 text-right">Προκατ/λή</th>
+                          <th className="p-3 text-left">Τρόπος</th>
+                          <th className="p-3 text-right">Υπόλοιπο</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -381,7 +600,23 @@ function ReportsContent() {
                               <td className="p-3">{booking.property.name}</td>
                               <td className="p-3">{format(parseISO(booking.checkOut), 'd MMM yyyy', { locale: el })}</td>
                               <td className="p-3">{booking.contactInfo || '-'}</td>
-                              <td className="p-3 text-green-600 font-medium">{booking.deposit || '-'}</td>
+                              <td className="p-3 text-right font-bold text-blue-600">
+                                {booking.totalPrice ? `€${Number(booking.totalPrice).toFixed(2)}` : (booking.deposit || '-')}
+                              </td>
+                              <td className="p-3 text-right font-semibold text-green-600">
+                                {booking.advancePayment ? `€${Number(booking.advancePayment).toFixed(2)}` : '-'}
+                              </td>
+                              <td className="p-3 text-xs">
+                                {booking.advancePaymentMethod || '-'}
+                                {booking.advancePaymentDate && (
+                                  <div className="text-gray-500">
+                                    {format(parseISO(booking.advancePaymentDate), 'd/MM', { locale: el })}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-right font-semibold text-amber-600">
+                                {booking.remainingBalance ? `€${Number(booking.remainingBalance).toFixed(2)}` : '-'}
+                              </td>
                             </tr>
                           ))
                         ))}
@@ -391,6 +626,8 @@ function ReportsContent() {
                 </>
               )}
             </div>
+            </div>
+            {/* End Report Content */}
           </div>
         </div>
       </div>

@@ -41,12 +41,16 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
 
+    // Remove propertyId from body as it cannot be updated (it's a relation field)
+    const { propertyId, ...updateData } = body
+
     const booking = await prisma.booking.update({
       where: { id },
       data: {
-        ...body,
+        ...updateData,
         checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
         checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
+        advancePaymentDate: body.advancePaymentDate ? new Date(body.advancePaymentDate) : undefined,
       },
       include: {
         property: {

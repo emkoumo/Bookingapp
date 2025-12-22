@@ -92,6 +92,15 @@ export default function EmailComposerModal({
     }
   }, [template.name, businessId])
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
+
   const fetchPaymentMethods = async () => {
     try {
       const res = await fetch(`/api/payment-methods?businessId=${businessId}`)
@@ -613,7 +622,7 @@ export default function EmailComposerModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 md:flex md:items-center md:justify-center z-[70] md:p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 md:flex md:items-center md:justify-center z-[70] md:p-4 overflow-y-auto">
       <div className="bg-white h-full md:h-auto md:rounded-2xl shadow-2xl md:max-w-4xl w-full md:my-8 animate-scale-in flex flex-col md:max-h-[90vh]">
         {/* Header - Sticky on mobile */}
         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-4 md:px-6 py-4 md:rounded-t-2xl sticky top-0 z-10">
