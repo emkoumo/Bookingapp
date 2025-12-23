@@ -27,6 +27,7 @@ interface BookingModalProps {
     propertyIds: string[]
     customerName: string
     contactInfo: string
+    contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
     checkIn: string
     checkOut: string
     deposit: string
@@ -37,12 +38,14 @@ interface BookingModalProps {
     advancePaymentMethod?: string | null
     advancePaymentDate?: string | null
     perPropertyPrices?: { [propertyId: string]: number } // Added for multi-property bookings
+    advancePaymentPerProperty?: { [propertyId: string]: number } // Split advance payment for multi-property bookings
   }) => void
   onDelete?: () => void
   initialData?: {
     propertyIds: string[]
     customerName: string
     contactInfo: string
+    contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
     checkIn: string
     checkOut: string
     deposit: string
@@ -63,6 +66,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     propertyIds: [] as string[],
     customerName: '',
     contactInfo: '',
+    contactChannel: '' as '' | 'phone' | 'email' | 'viber' | 'messenger',
     checkIn: '',
     checkOut: '',
     deposit: '',
@@ -101,6 +105,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [dateConflicts, setDateConflicts] = useState<string[]>([])
   const [checkOutDisabledDates, setCheckOutDisabledDates] = useState<string[]>([])
+  const [isPriceExpanded, setIsPriceExpanded] = useState(false)
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -469,15 +474,29 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       return
     }
 
+    // Calculate split advance payment for multi-property bookings
+    const totalAdvance = parseFloat(advancePayment) || 0
+    let advancePaymentPerProperty: { [propertyId: string]: number } | undefined
+
+    if (formData.propertyIds.length > 1 && totalAdvance > 0) {
+      // Split advance payment equally among all properties
+      const splitAmount = totalAdvance / formData.propertyIds.length
+      advancePaymentPerProperty = {}
+      formData.propertyIds.forEach(propertyId => {
+        advancePaymentPerProperty![propertyId] = splitAmount
+      })
+    }
+
     // Include price data in submission
     const submissionData = {
       ...formData,
       totalPrice: priceCalculation?.totalPrice,
-      advancePayment: parseFloat(advancePayment) || null,
+      advancePayment: totalAdvance || null,
       remainingBalance: remainingBalance || null,
       advancePaymentMethod: advancePaymentMethod || null,
       advancePaymentDate: advancePaymentDate || null,
-      perPropertyPrices: priceCalculation?.perPropertyPrices // Include per-property prices for multi-property bookings
+      perPropertyPrices: priceCalculation?.perPropertyPrices, // Include per-property prices for multi-property bookings
+      advancePaymentPerProperty // Include split advance payment for multi-property bookings
     }
 
     onSave(submissionData as any)
@@ -543,13 +562,39 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
           {/* Contact Info */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Στοιχεία Επικοινωνίας</label>
-            <input
-              type="text"
-              value={formData.contactInfo}
-              onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
-              placeholder="Τηλέφωνο, Email"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-            />
+            <div className="grid grid-cols-[140px_1fr] gap-3">
+              <div className="relative">
+                <select
+                  value={formData.contactChannel}
+                  onChange={(e) => setFormData({ ...formData, contactChannel: e.target.value as '' | 'phone' | 'email' | 'viber' | 'messenger' })}
+                  className="w-full px-3 py-3 pr-8 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white text-sm appearance-none cursor-pointer"
+                >
+                  <option value="">Επιλογή...</option>
+                  <option value="phone">Phone</option>
+                  <option value="email">Email</option>
+                  <option value="viber">Viber</option>
+                  <option value="messenger">Messenger</option>
+                </select>
+                <div className="absolute right-3 inset-y-0 flex items-center pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={formData.contactInfo}
+                onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
+                placeholder={
+                  formData.contactChannel === 'phone' ? 'Τηλέφωνο' :
+                  formData.contactChannel === 'email' ? 'Email' :
+                  formData.contactChannel === 'viber' ? 'Viber username' :
+                  formData.contactChannel === 'messenger' ? 'Messenger username' :
+                  'Στοιχεία επικοινωνίας'
+                }
+                className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Dates */}
@@ -616,13 +661,27 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 </div>
               ) : priceCalculation && priceCalculation.success && priceCalculation.totalPrice ? (
                 <>
-                  {/* Per-Night Price Breakdown */}
+                  {/* Per-Night Price Breakdown - Collapsible */}
                   {priceCalculation.breakdown && priceCalculation.breakdown.length > 0 && (
-                    <div className="bg-white border border-gray-300 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-bold text-gray-700">Τιμές ανά Νύχτα</h4>
-                        <span className="text-xs text-gray-500">Μπορείτε να επεξεργαστείτε τις τιμές</span>
-                      </div>
+                    <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setIsPriceExpanded(!isPriceExpanded)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <h4 className="font-bold text-gray-700">Αλλαγή τιμής</h4>
+                        <svg
+                          className={`w-5 h-5 text-gray-600 transition-transform ${isPriceExpanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {isPriceExpanded && (
+                        <div className="p-4 pt-3 border-t border-gray-200">
 
                       <div className="space-y-3">
                         {groupByPrice(priceCalculation.breakdown).map((group, groupIndex) => {
@@ -730,6 +789,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                           <span>Έχετε τροποποιήσει προσαρμοσμένες τιμές. Κλικ στο × για επαναφορά στις αρχικές τιμές.</span>
                         </div>
                       )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -766,22 +827,29 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     {/* Row 2: Payment Method and Date */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Τρόπος Πληρωμής *</label>
-                        <select
-                          value={advancePaymentMethod}
-                          onChange={(e) => setAdvancePaymentMethod(e.target.value)}
-                          className="w-full px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white h-[52px]"
-                          disabled={!advancePayment || parseFloat(advancePayment) === 0}
-                        >
-                          <option value=""></option>
-                          <option value="Revolut">Revolut</option>
-                          <option value="Πειραιώς">Πειραιώς</option>
-                          <option value="MoneyGram">MoneyGram</option>
-                          <option value="Western Union">Western Union</option>
-                        </select>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Τρόπος Πληρωμής</label>
+                        <div className="relative">
+                          <select
+                            value={advancePaymentMethod}
+                            onChange={(e) => setAdvancePaymentMethod(e.target.value)}
+                            className="w-full px-4 pr-10 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white h-[52px] appearance-none cursor-pointer"
+                            disabled={!advancePayment || parseFloat(advancePayment) === 0}
+                          >
+                            <option value=""></option>
+                            <option value="Revolut">Revolut</option>
+                            <option value="Πειραιώς">Πειραιώς</option>
+                            <option value="MoneyGram">MoneyGram</option>
+                            <option value="Western Union">Western Union</option>
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Ημερομηνία Πληρωμής *</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Ημ/νια</label>
                         <div className="h-[52px]">
                           <DatePicker
                             value={advancePaymentDate}
@@ -828,12 +896,26 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 </div>
               ) : priceCalculation && priceCalculation.success && priceCalculation.totalPrice && priceCalculation.breakdown ? (
                 <>
-                  {/* Per-Night Price Breakdown (shared for all properties) */}
-                  <div className="bg-white border border-gray-300 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-bold text-gray-700">Τιμές ανά Νύχτα</h4>
-                      <span className="text-xs text-gray-500">Μπορείτε να επεξεργαστείτε τις τιμές</span>
-                    </div>
+                  {/* Per-Night Price Breakdown (shared for all properties) - Collapsible */}
+                  <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setIsPriceExpanded(!isPriceExpanded)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <h4 className="font-bold text-gray-700">Αλλαγή τιμής</h4>
+                      <svg
+                        className={`w-5 h-5 text-gray-600 transition-transform ${isPriceExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {isPriceExpanded && (
+                      <div className="p-4 pt-3 border-t border-gray-200">
 
                     <div className="space-y-3">
                       {groupByPrice(priceCalculation.breakdown).map((group, groupIndex) => {
@@ -940,6 +1022,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                         <span>Έχετε τροποποιήσει προσαρμοσμένες τιμές. Κλικ στο × για επαναφορά στις αρχικές τιμές.</span>
                       </div>
                     )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Per-Property Prices */}
@@ -989,27 +1073,52 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                         placeholder="0.00"
                         className="w-full px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white h-[52px]"
                       />
+                      {/* Show split info for multi-property bookings */}
+                      {advancePayment && parseFloat(advancePayment) > 0 && formData.propertyIds.length > 1 && (
+                        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-xs font-semibold text-blue-800 mb-2">Κατανομή ανά κατάλυμα:</div>
+                          <div className="space-y-1">
+                            {formData.propertyIds.map(propertyId => {
+                              const property = properties.find(p => p.id === propertyId)
+                              const splitAmount = parseFloat(advancePayment) / formData.propertyIds.length
+                              return (
+                                <div key={propertyId} className="flex justify-between text-xs text-blue-700">
+                                  <span>{property?.name}</span>
+                                  <span className="font-bold">€{splitAmount.toFixed(2)}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Row 2: Payment Method and Date */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Τρόπος Πληρωμής *</label>
-                        <select
-                          value={advancePaymentMethod}
-                          onChange={(e) => setAdvancePaymentMethod(e.target.value)}
-                          className="w-full px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white h-[52px]"
-                          disabled={!advancePayment || parseFloat(advancePayment) === 0}
-                        >
-                          <option value=""></option>
-                          <option value="Revolut">Revolut</option>
-                          <option value="Πειραιώς">Πειραιώς</option>
-                          <option value="MoneyGram">MoneyGram</option>
-                          <option value="Western Union">Western Union</option>
-                        </select>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Τρόπος Πληρωμής</label>
+                        <div className="relative">
+                          <select
+                            value={advancePaymentMethod}
+                            onChange={(e) => setAdvancePaymentMethod(e.target.value)}
+                            className="w-full px-4 pr-10 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white h-[52px] appearance-none cursor-pointer"
+                            disabled={!advancePayment || parseFloat(advancePayment) === 0}
+                          >
+                            <option value=""></option>
+                            <option value="Revolut">Revolut</option>
+                            <option value="Πειραιώς">Πειραιώς</option>
+                            <option value="MoneyGram">MoneyGram</option>
+                            <option value="Western Union">Western Union</option>
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Ημερομηνία Πληρωμής *</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Ημ/νια</label>
                         <div className="h-[52px]">
                           <DatePicker
                             value={advancePaymentDate}

@@ -36,6 +36,7 @@ model Booking {
   propertyId             String
   customerName           String
   contactInfo            String?
+  contactChannel         String?
   checkIn                DateTime @db.Date
   checkOut               DateTime @db.Date
   deposit                String?
