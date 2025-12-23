@@ -562,7 +562,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
           {/* Contact Info */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Στοιχεία Επικοινωνίας</label>
-            <div className="grid grid-cols-[140px_1fr] gap-3">
+            <div className="grid grid-cols-[120px_1fr] gap-3">
               <div className="relative">
                 <select
                   value={formData.contactChannel}
@@ -592,7 +592,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                   formData.contactChannel === 'messenger' ? 'Messenger username' :
                   'Στοιχεία επικοινωνίας'
                 }
-                className="h-[52px] px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full h-[52px] px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
