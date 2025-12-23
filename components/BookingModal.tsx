@@ -554,7 +554,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
               type="text"
               value={formData.customerName}
               onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              className="w-full h-[52px] px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
               required
             />
           </div>
@@ -567,7 +567,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 <select
                   value={formData.contactChannel}
                   onChange={(e) => setFormData({ ...formData, contactChannel: e.target.value as '' | 'phone' | 'email' | 'viber' | 'messenger' })}
-                  className="w-full px-3 py-3 pr-8 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white text-sm appearance-none cursor-pointer"
+                  className="w-full h-[52px] px-3 pr-8 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white text-sm appearance-none cursor-pointer"
                 >
                   <option value="">Επιλογή...</option>
                   <option value="phone">Phone</option>
@@ -592,7 +592,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                   formData.contactChannel === 'messenger' ? 'Messenger username' :
                   'Στοιχεία επικοινωνίας'
                 }
-                className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="h-[52px] px-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
