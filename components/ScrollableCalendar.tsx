@@ -14,8 +14,10 @@ interface Booking {
   contactInfo: string | null
   checkIn: string
   checkOut: string
-  property: Property
+  deposit: string | null
+  notes: string | null
   status: string
+  property: Property
 }
 
 interface ScrollableCalendarProps {
