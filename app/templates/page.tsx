@@ -82,7 +82,7 @@ function TemplatesContent() {
       case 'availability_confirmation':
         return 'Επιβεβαίωση Διαθεσιμότητας'
       case 'booking_confirmation':
-        return 'Επιβεβαίωση Κράτησης'
+        return 'Στοιχεία Πληρωμής'
       default:
         return name
     }

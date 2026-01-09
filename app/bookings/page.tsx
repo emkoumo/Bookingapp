@@ -521,11 +521,16 @@ function BookingsContent() {
                     value={startDate}
                     onChange={setStartDate}
                     placeholder="Ημερομηνία"
+                    maxDate={endDate || undefined}
+                    highlightDate={endDate || undefined}
                   />
                   <DatePicker
                     value={endDate}
                     onChange={setEndDate}
                     placeholder="Ημερομηνία"
+                    minDate={startDate || undefined}
+                    highlightDate={startDate || undefined}
+                    initialMonth={startDate || undefined}
                   />
                 </div>
               </div>

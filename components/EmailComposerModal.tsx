@@ -74,6 +74,7 @@ export default function EmailComposerModal({
   const [checkOutDate, setCheckOutDate] = useState('')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('')
+  const [advancePayment, setAdvancePayment] = useState<string>('')
 
   // Sync editedTemplate when template prop changes (after save)
   useEffect(() => {
@@ -160,7 +161,7 @@ export default function EmailComposerModal({
         setPreviewImageUrl(null)
       }
     } else if (template.name === 'booking_confirmation') {
-      if (checkInDate && checkOutDate && selectedPaymentMethod) {
+      if (checkInDate && checkOutDate && selectedPaymentMethod && advancePayment && advancePayment.trim() !== '') {
         generateBookingConfirmationImage()
           .then(blob => {
             const url = URL.createObjectURL(blob)
@@ -179,7 +180,7 @@ export default function EmailComposerModal({
     return () => {
       if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
     }
-  }, [dateRanges, checkInDate, checkOutDate, selectedPaymentMethod, template.name])
+  }, [dateRanges, checkInDate, checkOutDate, selectedPaymentMethod, advancePayment, template.name])
 
   // Format alternative dates for email
   const formatAlternativeDates = () => {
@@ -346,7 +347,7 @@ export default function EmailComposerModal({
     return new Promise(async (resolve, reject) => {
       try {
         const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
-        const templatePath = `/email-templates/${businessFolder}/booking-confirmation.png`
+        const templatePath = `/email-templates/${businessFolder}/payments-details.png`
 
         const img = new Image()
         img.crossOrigin = 'anonymous'
@@ -383,10 +384,22 @@ export default function EmailComposerModal({
           ctx.font = '300 21px Geologica, Arial, sans-serif'
           ctx.fillText(dateRangeText, 24, 294)
 
-          // Payment info overlay at x=24, y=428 (increased by 15px)
+          // Advance payment amount overlay (if provided) - moved 70px down and 42px right
+          if (advancePayment && advancePayment.trim() !== '') {
+            ctx.fillStyle = '#C0C0C0'
+            ctx.font = '200 21px Geologica, Arial, sans-serif'
+            ctx.fillText('Advance payment amount: ', 24, 430)
+            ctx.fillStyle = '#ffffff'
+            ctx.font = '300 21px Geologica, Arial, sans-serif'
+            // Add euro symbol if not already present
+            const amountText = advancePayment.includes('€') ? advancePayment : `${advancePayment} €`
+            ctx.fillText(amountText, 297, 430)
+          }
+
+          // Payment info overlay at x=24, y=498 (moved 70px down)
           const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethod)
           if (selectedMethod) {
-            let y = 428
+            let y = 498
             const lineSpacing = 10
 
             if (selectedMethod.type !== 'western_union') {
@@ -615,7 +628,7 @@ export default function EmailComposerModal({
       case 'availability_confirmation':
         return 'Επιβεβαίωση Διαθεσιμότητας'
       case 'booking_confirmation':
-        return 'Επιβεβαίωση Κράτησης'
+        return 'Στοιχεία Πληρωμής'
       default:
         return name
     }
@@ -670,6 +683,7 @@ export default function EmailComposerModal({
                             isEditMode={false}
                             minDate={range.startDate || format(new Date(), 'yyyy-MM-dd')}
                             highlightDate={range.startDate || undefined}
+                            initialMonth={range.startDate || undefined}
                           />
                         </div>
                         {/* Only show delete button after first range */}
@@ -792,8 +806,23 @@ export default function EmailComposerModal({
                     isEditMode={false}
                     minDate={checkInDate || format(new Date(), 'yyyy-MM-dd')}
                     highlightDate={checkInDate || undefined}
+                    initialMonth={checkInDate || undefined}
                   />
                 </div>
+              </div>
+
+              {/* Advance Payment Amount */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Ποσό προκαταβολής
+                </label>
+                <input
+                  type="text"
+                  value={advancePayment}
+                  onChange={(e) => setAdvancePayment(e.target.value)}
+                  placeholder="π.χ. 100€"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                />
               </div>
 
               {/* Payment Method Selection */}
@@ -852,7 +881,7 @@ export default function EmailComposerModal({
                   ) : (
                     <div className="text-center py-8">
                       <div className="text-gray-700 mb-2">
-                        📅 Επιλέξτε ημερομηνίες και μέθοδο πληρωμής
+                        📅 Επιλέξτε ημερομηνίες, ποσό προκαταβολής και μέθοδο πληρωμής
                       </div>
                       <div className="text-sm text-gray-600">
                         Η εικόνα θα δημιουργηθεί αυτόματα
@@ -1134,9 +1163,9 @@ export default function EmailComposerModal({
               </button>
               <button
                 onClick={() => copyImageBlob()}
-                disabled={!checkInDate || !checkOutDate || !selectedPaymentMethod}
+                disabled={!checkInDate || !checkOutDate || !selectedPaymentMethod || !advancePayment || advancePayment.trim() === ''}
                 className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-opacity shadow-md ${
-                  !checkInDate || !checkOutDate || !selectedPaymentMethod
+                  !checkInDate || !checkOutDate || !selectedPaymentMethod || !advancePayment || advancePayment.trim() === ''
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:opacity-90'
                 }`}
