@@ -2,15 +2,13 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import FullCalendar from '@fullcalendar/react'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import timeGridPlugin from '@fullcalendar/timegrid'
-import interactionPlugin from '@fullcalendar/interaction'
 import { format } from 'date-fns'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import Modal from '@/components/Modal'
 import BookingModal from '@/components/BookingModal'
+import ScrollableCalendar from '@/components/ScrollableCalendar'
+import DatePicker from '@/components/DatePicker'
 
 interface Property {
   id: string
@@ -43,6 +41,15 @@ function CalendarContent() {
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
 
+  // Initialize date range for Evaggelia with April-October
+  const currentYear = new Date().getFullYear()
+  const [dateRangeStart, setDateRangeStart] = useState<string>(
+    businessId === 'evaggelia-id' ? `${currentYear}-04` : ''
+  )
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>(
+    businessId === 'evaggelia-id' ? `${currentYear}-10` : ''
+  )
+
   useEffect(() => {
     if (businessId) {
       fetchData()
@@ -70,39 +77,6 @@ function CalendarContent() {
     }
   }
 
-  const filteredBookings = bookings.filter((booking) => {
-    if (selectedProperty === 'all') return true
-    return booking.property.id === selectedProperty
-  })
-
-  const events = filteredBookings
-    .filter((b) => b.status === 'active')
-    .map((booking) => {
-      // Format property name to short version (e.g., "Apartment 1" -> "Apt.1")
-      const shortName = booking.property.name
-        .replace('Apartment', 'Apt.')
-        .replace('Villa', 'V.')
-        .replace(/\s+/g, '')
-
-      // FullCalendar end date is exclusive, so we add 1 day to include checkout day
-      const checkOutDate = new Date(booking.checkOut)
-      checkOutDate.setDate(checkOutDate.getDate() + 1)
-
-      return {
-        id: booking.id,
-        title: shortName,
-        start: booking.checkIn,
-        end: checkOutDate.toISOString().split('T')[0],
-        allDay: true,
-        backgroundColor: getColorForProperty(booking.property.id),
-        borderColor: getColorForProperty(booking.property.id),
-        extendedProps: {
-          propertyName: booking.property.name,
-          customerName: booking.customerName,
-        },
-      }
-    })
-
   function getColorForProperty(propertyId: string) {
     const colors = [
       '#3b82f6',
@@ -117,11 +91,9 @@ function CalendarContent() {
     return colors[index % colors.length]
   }
 
-  const handleEventClick = (info: any) => {
-    const booking = bookings.find((b) => b.id === info.event.id)
-    if (booking) {
-      setEditingBooking(booking)
-    }
+  const handleEventClick = (booking: Booking) => {
+    console.log('Clicked booking:', booking)
+    setEditingBooking(booking)
   }
 
   const handleSaveBooking = async (data: {
@@ -219,6 +191,37 @@ function CalendarContent() {
     }
   }
 
+  const setSeasonRange = () => {
+    const currentYear = new Date().getFullYear()
+    setDateRangeStart(`${currentYear}-04`)
+    setDateRangeEnd(`${currentYear}-10`)
+  }
+
+  const clearDateRange = () => {
+    setDateRangeStart('')
+    setDateRangeEnd('')
+  }
+
+  // Generate month options for dropdowns (current year only)
+  const generateMonthOptions = () => {
+    const currentYear = new Date().getFullYear()
+    const months = [
+      'Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος',
+      'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'
+    ]
+    const options = []
+
+    // Add months for current year only
+    months.forEach((month, index) => {
+      const value = `${currentYear}-${String(index + 1).padStart(2, '0')}`
+      options.push({ value, label: `${month}` })
+    })
+
+    return options
+  }
+
+  const monthOptions = generateMonthOptions()
+
   if (!businessId) {
     return (
       <>
@@ -294,9 +297,9 @@ function CalendarContent() {
       )}
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white md:m-4 md:rounded-xl md:shadow-lg">
+          <div className="bg-white md:m-4 md:rounded-xl md:shadow-lg pb-4">
             {/* Header Section */}
-            <div className="py-3 border-b border-gray-200">
+            <div className="py-3 border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center justify-between px-4">
                 <button
                   onClick={() => router.push('/')}
@@ -320,7 +323,7 @@ function CalendarContent() {
             </div>
 
             {/* Property Tabs Section */}
-            <div className="py-3 border-b border-gray-200">
+            <div className="py-3 border-b border-gray-200 flex-shrink-0">
               <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
                 <button
                   onClick={() => setSelectedProperty('all')}
@@ -348,53 +351,77 @@ function CalendarContent() {
               </div>
             </div>
 
+            {/* Date Range Filter Section */}
+            <div className="py-3 border-b border-gray-200 flex-shrink-0">
+              <div className="px-4 space-y-2">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <div className="relative">
+                    <select
+                      value={dateRangeStart}
+                      onChange={(e) => setDateRangeStart(e.target.value)}
+                      className="appearance-none px-2.5 py-2 pr-8 border-2 border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors bg-white cursor-pointer"
+                    >
+                      <option value="">Από μήνα</option>
+                      {monthOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-500">-</span>
+                  <div className="relative">
+                    <select
+                      value={dateRangeEnd}
+                      onChange={(e) => setDateRangeEnd(e.target.value)}
+                      className="appearance-none px-2.5 py-2 pr-8 border-2 border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors bg-white cursor-pointer"
+                    >
+                      <option value="">Έως μήνα</option>
+                      {monthOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  {(dateRangeStart || dateRangeEnd) && (
+                    <button
+                      onClick={clearDateRange}
+                      className="px-2.5 py-2 border-2 border-gray-300 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 hover:border-gray-400 text-sm font-semibold transition-colors flex items-center gap-1"
+                      title="Καθαρισμός"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span className="hidden md:inline">Καθαρισμός</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Calendar Section */}
             {loading ? (
               <div className="flex justify-center items-center py-20">
                 <div className="text-lg text-gray-600 font-medium">Φόρτωση...</div>
               </div>
             ) : (
-              <div className="py-3 calendar-wrapper">
-                <FullCalendar
-                  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                  initialView="dayGridMonth"
-                  headerToolbar={{
-                    left: 'prev,next',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek',
-                  }}
-                  events={events}
-                  eventClick={handleEventClick}
-                  height="auto"
-                  locale="el"
-                  firstDay={1}
-                  buttonText={{
-                    month: 'Μήνας',
-                    week: 'Εβδομάδα',
-                  }}
-                  titleFormat={{ year: 'numeric', month: 'short' }}
-                  eventTextColor="#ffffff"
-                  eventDisplay="block"
-                  dayMaxEvents={false}
-                />
-              </div>
+              <ScrollableCalendar
+                bookings={bookings}
+                properties={properties}
+                selectedProperty={selectedProperty}
+                onBookingClick={handleEventClick}
+                getColorForProperty={getColorForProperty}
+                dateRangeStart={dateRangeStart}
+                dateRangeEnd={dateRangeEnd}
+              />
             )}
-
-            {/* Legend Section */}
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-              <h3 className="font-bold text-gray-900 mb-3 text-sm">Καταλύματα</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {properties.map((prop) => (
-                  <div key={prop.id} className="flex items-center gap-2">
-                    <div
-                      className="w-4 h-4 rounded flex-shrink-0"
-                      style={{ backgroundColor: getColorForProperty(prop.id) }}
-                    />
-                    <span className="text-sm text-gray-900 font-medium truncate">{prop.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </div>

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(cat:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
