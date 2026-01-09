@@ -209,7 +209,7 @@ function CalendarContent() {
       'Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος',
       'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'
     ]
-    const options = []
+    const options: { value: string; label: string }[] = []
 
     // Add months for current year only
     months.forEach((month, index) => {
