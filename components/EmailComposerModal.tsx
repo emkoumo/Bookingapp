@@ -76,6 +76,10 @@ export default function EmailComposerModal({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('')
   const [advancePayment, setAdvancePayment] = useState<string>('')
 
+  // Availability Confirmation states
+  const [availabilityCheckIn, setAvailabilityCheckIn] = useState('')
+  const [availabilityCheckOut, setAvailabilityCheckOut] = useState('')
+
   // Sync editedTemplate when template prop changes (after save)
   useEffect(() => {
     setEditedTemplate({
@@ -160,6 +164,22 @@ export default function EmailComposerModal({
       } else {
         setPreviewImageUrl(null)
       }
+    } else if (template.name === 'availability_confirmation') {
+      // Generate preview if at least one date is provided
+      if (availabilityCheckIn || availabilityCheckOut) {
+        generateAvailabilityConfirmationImageWithDates()
+          .then(blob => {
+            const url = URL.createObjectURL(blob)
+            if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
+            setPreviewImageUrl(url)
+          })
+          .catch(err => {
+            console.error('Preview generation error:', err)
+            setPreviewImageUrl(null)
+          })
+      } else {
+        setPreviewImageUrl(null)
+      }
     } else if (template.name === 'booking_confirmation') {
       if (checkInDate && checkOutDate && selectedPaymentMethod && advancePayment && advancePayment.trim() !== '') {
         generateBookingConfirmationImage()
@@ -180,7 +200,7 @@ export default function EmailComposerModal({
     return () => {
       if (previewImageUrl) URL.revokeObjectURL(previewImageUrl)
     }
-  }, [dateRanges, checkInDate, checkOutDate, selectedPaymentMethod, advancePayment, template.name])
+  }, [dateRanges, checkInDate, checkOutDate, selectedPaymentMethod, advancePayment, availabilityCheckIn, availabilityCheckOut, template.name])
 
   // Format alternative dates for email
   const formatAlternativeDates = () => {
@@ -270,13 +290,24 @@ export default function EmailComposerModal({
           const lineSpacing = 8
 
           validRanges.forEach((range, index) => {
-            // Format dates as "10-20 Oct 2025"
+            // Format dates as "13-15 Ιουν 2026" or "20 Ιουν-10 Ιουλ 2026"
             const startDate = new Date(range.startDate)
             const endDate = new Date(range.endDate)
             const startDay = startDate.getDate()
             const endDay = endDate.getDate()
-            const month = format(endDate, 'MMM yyyy', { locale: el })
-            const dateText = `${index + 1}. ${startDay}-${endDay} ${month}`
+            const startMonth = format(startDate, 'MMM', { locale: el })
+            const endMonth = format(endDate, 'MMM', { locale: el })
+            const year = endDate.getFullYear()
+
+            let dateText: string
+            if (startMonth === endMonth) {
+              // Same month: "13-15 Ιουν 2026"
+              dateText = `${index + 1}. ${startDay}-${endDay} ${startMonth} ${year}`
+            } else {
+              // Different months: "20 Ιουν-10 Ιουλ 2026"
+              dateText = `${index + 1}. ${startDay} ${startMonth}-${endDay} ${endMonth} ${year}`
+            }
+
             const y = startY + (index * (21 + lineSpacing)) // 21px font height + 8px spacing
             ctx.fillText(dateText, startX, y)
           })
@@ -319,6 +350,92 @@ export default function EmailComposerModal({
         resolve(blob)
       } catch (err) {
         console.error('Image load error:', err)
+        reject(err)
+      }
+    })
+  }
+
+  // Generate availability confirmation image with dates overlay
+  const generateAvailabilityConfirmationImageWithDates = async (): Promise<Blob> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const businessFolder = businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'
+        const templatePath = `/email-templates/${businessFolder}/availability-confirmation.png`
+
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')
+
+          if (!ctx) {
+            reject(new Error('Canvas not supported'))
+            return
+          }
+
+          // Draw base image
+          ctx.drawImage(img, 0, 0)
+
+          // Font setup - Geologica
+          ctx.font = '300 21px Geologica, Arial, sans-serif'
+          ctx.fillStyle = '#ffffff'
+          ctx.textAlign = 'left'
+
+          // Overlay dates if provided - moved 45px down from 290 to 335
+          const startX = 24
+          let y = 335
+
+          // Format dates as "13-15 Ιουν 2026" or "20 Ιουν-10 Ιουλ 2026"
+          if (availabilityCheckIn && availabilityCheckOut) {
+            const startDate = new Date(availabilityCheckIn)
+            const endDate = new Date(availabilityCheckOut)
+            const startDay = startDate.getDate()
+            const endDay = endDate.getDate()
+            const startMonth = format(startDate, 'MMM', { locale: el })
+            const endMonth = format(endDate, 'MMM', { locale: el })
+            const year = endDate.getFullYear()
+
+            let dateText: string
+            if (startMonth === endMonth) {
+              // Same month: "13-15 Ιουν 2026"
+              dateText = `${startDay}-${endDay} ${startMonth} ${year}`
+            } else {
+              // Different months: "20 Ιουν-10 Ιουλ 2026"
+              dateText = `${startDay} ${startMonth}-${endDay} ${endMonth} ${year}`
+            }
+            ctx.fillText(dateText, startX, y)
+          } else if (availabilityCheckIn) {
+            // Only check-in date
+            const checkInDateObj = new Date(availabilityCheckIn)
+            const formattedCheckIn = format(checkInDateObj, 'd MMM yyyy', { locale: el })
+            ctx.fillText(formattedCheckIn, startX, y)
+          } else if (availabilityCheckOut) {
+            // Only check-out date
+            const checkOutDateObj = new Date(availabilityCheckOut)
+            const formattedCheckOut = format(checkOutDateObj, 'd MMM yyyy', { locale: el })
+            ctx.fillText(formattedCheckOut, startX, y)
+          }
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob)
+            } else {
+              reject(new Error('Failed to generate image'))
+            }
+          }, 'image/png')
+        }
+
+        img.onerror = (e) => {
+          console.error('Image load error:', e)
+          reject(new Error(`Failed to load template image: ${templatePath}`))
+        }
+
+        img.src = templatePath
+      } catch (err) {
+        console.error('Canvas generation error:', err)
         reject(err)
       }
     })
@@ -514,9 +631,11 @@ export default function EmailComposerModal({
         console.log('Clipboard write successful')
         showToast('✅ Εικόνα αντιγράφηκε!')
       } else if (editedTemplate.name === 'availability_confirmation') {
-        // Simple copy without overlay
+        // Copy with dates overlay if dates provided, otherwise simple copy
         const clipboardItemPromise = new ClipboardItem({
-          'image/png': generateAvailabilityConfirmationImage()
+          'image/png': (availabilityCheckIn || availabilityCheckOut)
+            ? generateAvailabilityConfirmationImageWithDates()
+            : generateAvailabilityConfirmationImage()
         })
         await navigator.clipboard.write([clipboardItemPromise])
         showToast('✅ Εικόνα αντιγράφηκε!')
@@ -742,22 +861,62 @@ export default function EmailComposerModal({
             </>
           ) : template.name === 'availability_confirmation' ? (
             <>
-              {/* Availability Confirmation - Just show image preview */}
+              {/* Availability Confirmation with dates */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Ημερομηνίες (Προαιρετικό - μπορείτε να επιλέξετε μόνο μία ή και τις δύο)
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <DatePicker
+                    value={availabilityCheckIn}
+                    onChange={setAvailabilityCheckIn}
+                    placeholder="Check-in (προαιρετικό)"
+                    isEditMode={false}
+                    minDate={format(new Date(), 'yyyy-MM-dd')}
+                    maxDate={availabilityCheckOut || undefined}
+                    highlightDate={availabilityCheckOut || undefined}
+                  />
+                  <DatePicker
+                    value={availabilityCheckOut}
+                    onChange={setAvailabilityCheckOut}
+                    placeholder="Check-out (προαιρετικό)"
+                    isEditMode={false}
+                    minDate={availabilityCheckIn || format(new Date(), 'yyyy-MM-dd')}
+                    highlightDate={availabilityCheckIn || undefined}
+                    initialMonth={availabilityCheckIn || undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
                   Προεπισκόπηση
                 </label>
                 <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
-                  <div className="flex flex-col items-center">
-                    <img
-                      src={`/email-templates/${businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'}/availability-confirmation.png`}
-                      alt="Availability Confirmation"
-                      className="max-w-full h-auto rounded shadow-md"
-                    />
-                    <div className="text-sm text-green-600 mt-2 font-medium">
-                      ✓ Έτοιμο για αντιγραφή
+                  {previewImageUrl ? (
+                    <div className="flex flex-col items-center">
+                      <img
+                        src={previewImageUrl}
+                        alt="Preview with dates"
+                        className="max-w-full h-auto rounded shadow-md"
+                      />
+                      <div className="text-sm text-green-600 mt-2 font-medium">
+                        ✓ Έτοιμο για αντιγραφή
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <img
+                        src={`/email-templates/${businessId.includes('evaggelia') ? 'evaggelia' : 'elegancia'}/availability-confirmation.png`}
+                        alt="Availability Confirmation"
+                        className="max-w-full h-auto rounded shadow-md"
+                      />
+                      <div className="text-sm text-gray-600 mt-2 font-medium">
+                        💡 Προσθέστε ημερομηνίες για να δημιουργηθεί προεπισκόπηση
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
