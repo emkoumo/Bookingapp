@@ -711,6 +711,16 @@ function BookingsContent() {
                                     <span className="text-sm font-bold text-gray-700">Σύνολο</span>
                                     <span className="text-base font-bold text-blue-600">€{Number(booking.totalPrice).toFixed(2)}</span>
                                   </div>
+                                  {booking.extraBedEnabled && (
+                                    <div className="flex justify-between items-center text-xs text-purple-700 bg-purple-50 -mx-3 px-3 py-1.5">
+                                      <span className="font-medium">Extra Κρεβάτι (€{Number(booking.extraBedPricePerNight || 0).toFixed(2)}/νύχτα)</span>
+                                      <span className="font-bold">
+                                        {booking.extraBedTotal && booking.extraBedTotal > 0
+                                          ? `€${Number(booking.extraBedTotal).toFixed(2)}`
+                                          : '(Δωρεάν)'}
+                                      </span>
+                                    </div>
+                                  )}
                                   {booking.advancePayment && booking.advancePayment > 0 && (
                                     <>
                                       <div className="flex justify-between items-center pt-2 border-t border-gray-200">
