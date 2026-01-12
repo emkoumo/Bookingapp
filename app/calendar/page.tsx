@@ -19,11 +19,20 @@ interface Booking {
   id: string
   customerName: string
   contactInfo: string | null
+  contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
   checkIn: string
   checkOut: string
   deposit: string | null
   notes: string | null
   status: string
+  totalPrice?: number
+  advancePayment?: number
+  remainingBalance?: number
+  advancePaymentMethod?: string
+  advancePaymentDate?: string
+  extraBedEnabled?: boolean
+  extraBedPricePerNight?: number
+  extraBedTotal?: number
   property: Property
 }
 
@@ -100,28 +109,51 @@ function CalendarContent() {
     propertyIds: string[]
     customerName: string
     contactInfo: string
+    contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
     checkIn: string
     checkOut: string
     deposit: string
     notes: string
+    totalPrice?: number
+    advancePayment?: number | null
+    remainingBalance?: number | null
+    advancePaymentMethod?: string | null
+    advancePaymentDate?: string | null
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number | null
+    extraBedTotal?: number | null
+    perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     try {
       // Create a booking for each selected property
-      const promises = data.propertyIds.map((propertyId) =>
-        fetch('/api/bookings', {
+      const promises = data.propertyIds.map((propertyId) => {
+        const individualPrice = data.perPropertyPrices && data.perPropertyPrices[propertyId]
+          ? data.perPropertyPrices[propertyId]
+          : data.totalPrice
+
+        return fetch('/api/bookings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             propertyId,
             customerName: data.customerName,
             contactInfo: data.contactInfo,
+            contactChannel: data.contactChannel,
             checkIn: data.checkIn,
             checkOut: data.checkOut,
             deposit: data.deposit,
             notes: data.notes,
+            totalPrice: individualPrice,
+            advancePayment: data.advancePayment,
+            remainingBalance: data.remainingBalance,
+            advancePaymentMethod: data.advancePaymentMethod,
+            advancePaymentDate: data.advancePaymentDate,
+            extraBedEnabled: data.extraBedEnabled,
+            extraBedPricePerNight: data.extraBedPricePerNight,
+            extraBedTotal: data.extraBedTotal,
           }),
         })
-      )
+      })
 
       const responses = await Promise.all(promises)
       const failed = responses.filter((res) => !res.ok)
@@ -143,10 +175,19 @@ function CalendarContent() {
     propertyIds: string[]
     customerName: string
     contactInfo: string
+    contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
     checkIn: string
     checkOut: string
     deposit: string
     notes: string
+    totalPrice?: number
+    advancePayment?: number | null
+    remainingBalance?: number | null
+    advancePaymentMethod?: string | null
+    advancePaymentDate?: string | null
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number | null
+    extraBedTotal?: number | null
   }) => {
     if (!editingBooking) return
 
@@ -158,10 +199,19 @@ function CalendarContent() {
           propertyId: data.propertyIds[0],
           customerName: data.customerName,
           contactInfo: data.contactInfo,
+          contactChannel: data.contactChannel,
           checkIn: data.checkIn,
           checkOut: data.checkOut,
           deposit: data.deposit,
           notes: data.notes,
+          totalPrice: data.totalPrice,
+          advancePayment: data.advancePayment,
+          remainingBalance: data.remainingBalance,
+          advancePaymentMethod: data.advancePaymentMethod,
+          advancePaymentDate: data.advancePaymentDate,
+          extraBedEnabled: data.extraBedEnabled,
+          extraBedPricePerNight: data.extraBedPricePerNight,
+          extraBedTotal: data.extraBedTotal,
         }),
       })
 
@@ -285,10 +335,19 @@ function CalendarContent() {
             propertyIds: [editingBooking.property.id],
             customerName: editingBooking.customerName,
             contactInfo: editingBooking.contactInfo || '',
+            contactChannel: editingBooking.contactChannel || '',
             checkIn: editingBooking.checkIn.split('T')[0],
             checkOut: editingBooking.checkOut.split('T')[0],
             deposit: editingBooking.deposit || '',
             notes: editingBooking.notes || '',
+            totalPrice: editingBooking.totalPrice,
+            advancePayment: editingBooking.advancePayment,
+            remainingBalance: editingBooking.remainingBalance,
+            advancePaymentMethod: editingBooking.advancePaymentMethod,
+            advancePaymentDate: editingBooking.advancePaymentDate,
+            extraBedEnabled: editingBooking.extraBedEnabled,
+            extraBedPricePerNight: editingBooking.extraBedPricePerNight,
+            extraBedTotal: editingBooking.extraBedTotal,
           }}
           isEdit={true}
           businessId={businessId || ''}
@@ -296,7 +355,7 @@ function CalendarContent() {
         />
       )}
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto">
+        <div className="mx-auto">
           <div className="bg-white md:m-4 md:rounded-xl md:shadow-lg pb-4">
             {/* Header Section */}
             <div className="py-3 border-b border-gray-200 flex-shrink-0">

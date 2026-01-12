@@ -31,6 +31,9 @@ interface Booking {
   remainingBalance?: number
   advancePaymentMethod?: string
   advancePaymentDate?: string
+  extraBedEnabled?: boolean
+  extraBedPricePerNight?: number
+  extraBedTotal?: number
   property: {
     id: string
     name: string
@@ -190,6 +193,9 @@ function BookingsContent() {
     remainingBalance?: number | null
     advancePaymentMethod?: string | null
     advancePaymentDate?: string | null
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number | null
+    extraBedTotal?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     try {
@@ -225,6 +231,9 @@ function BookingsContent() {
             remainingBalance: individualRemaining,
             advancePaymentMethod: data.advancePaymentMethod,
             advancePaymentDate: data.advancePaymentDate,
+            extraBedEnabled: data.extraBedEnabled,
+            extraBedPricePerNight: data.extraBedPricePerNight,
+            extraBedTotal: data.extraBedTotal,
           }),
         })
       })
@@ -267,6 +276,9 @@ function BookingsContent() {
     remainingBalance?: number | null
     advancePaymentMethod?: string | null
     advancePaymentDate?: string | null
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number | null
+    extraBedTotal?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     if (!editingBooking) return
@@ -289,6 +301,9 @@ function BookingsContent() {
           remainingBalance: data.remainingBalance,
           advancePaymentMethod: data.advancePaymentMethod,
           advancePaymentDate: data.advancePaymentDate,
+          extraBedEnabled: data.extraBedEnabled,
+          extraBedPricePerNight: data.extraBedPricePerNight,
+          extraBedTotal: data.extraBedTotal,
         }),
       })
 
@@ -392,6 +407,9 @@ function BookingsContent() {
             remainingBalance: editingBooking.remainingBalance,
             advancePaymentMethod: editingBooking.advancePaymentMethod,
             advancePaymentDate: editingBooking.advancePaymentDate ? editingBooking.advancePaymentDate.split('T')[0] : '',
+            extraBedEnabled: editingBooking.extraBedEnabled,
+            extraBedPricePerNight: editingBooking.extraBedPricePerNight,
+            extraBedTotal: editingBooking.extraBedTotal,
           }}
           isEdit={true}
           businessId={businessId || ''}
@@ -399,7 +417,7 @@ function BookingsContent() {
         />
       )}
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto">
+        <div className="mx-auto">
           <div className="bg-white md:m-4 md:rounded-xl md:shadow-lg">
             {/* Header Section */}
             <div className="py-3 border-b border-gray-200">
@@ -586,7 +604,20 @@ function BookingsContent() {
                             {/* Header with Customer Name, Property, and Actions */}
                             <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
                               <div className="flex items-start justify-between mb-2">
-                                <h3 className="font-bold text-lg text-gray-900 flex-1">{booking.customerName}</h3>
+                                <div className="flex items-center gap-2 flex-1">
+                                  <h3 className="font-bold text-lg text-gray-900">{booking.customerName}</h3>
+                                  {booking.extraBedEnabled && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path d="M21 16V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8"/>
+                                        <path d="M2 16h20"/>
+                                        <path d="M2 20h20"/>
+                                        <circle cx="7" cy="6" r="2"/>
+                                      </svg>
+                                      <span>+1</span>
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex gap-1 ml-2">
                                   <button
                                     onClick={() => setEditingBooking(booking)}
@@ -649,7 +680,7 @@ function BookingsContent() {
                                 <div className="flex items-center gap-3 text-sm">
                                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100">
                                     {booking.contactChannel === 'email' ? (
-                                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                       </svg>
                                     ) : booking.contactChannel === 'viber' ? (
@@ -657,11 +688,11 @@ function BookingsContent() {
                                         <path d="M444 49.9C431.3 38.2 379.9.9 265.3.4c0 0-135.1-8.1-200.9 52.3C27.8 89.3 14.9 143 13.5 209.5c-1.4 66.5-3.1 191.1 117 224.9h.1l-.1 51.6s-.8 20.9 13 25.1c16.6 5.2 26.4-10.7 42.3-27.8 8.7-9.4 20.7-23.2 29.8-33.7 82.2 6.9 145.3-8.9 152.5-11.2 16.6-5.4 110.5-17.4 125.7-142 15.8-128.6-7.6-209.8-49.8-246.5zM457.9 287c-12.9 104-89 110.6-103 115.1-6 1.9-61.5 15.7-131.2 11.2 0 0-52 62.7-68.2 79-5.3 5.3-11.1 4.8-11-5.7 0-6.9.4-85.7.4-85.7-.1 0-.1 0 0 0-101.8-28.2-95.8-134.3-94.7-189.8 1.1-55.5 11.6-101 42.6-131.6 55.7-50.5 170.4-43 170.4-43 96.9.4 143.3 29.6 154.1 39.4 35.7 30.6 53.9 103.8 40.6 211.1zm-139-80.8c.4 8.6-12.5 9.2-12.9.6-1.1-22-11.4-32.7-32.6-33.9-8.6-.5-7.8-13.4.7-12.9 27.9 1.5 43.4 17.5 44.8 46.2zm20.3 11.3c1-42.4-25.5-75.6-75.8-79.3-8.5-.6-7.6-13.5.9-12.9 58 4.2 88.9 44.1 87.8 92.5-.1 8.6-13.1 8.2-12.9-.3zm47 13.4c.1 8.6-12.9 8.7-12.9.1-.6-81.5-54.9-125.9-120.8-126.4-8.5-.1-8.5-12.9 0-12.9 73.7.5 133 51.4 133.7 139.2zM374.9 329v.2c-10.8 19-31 40-51.8 33.3l-.2-.3c-21.1-5.9-70.8-31.5-102.2-56.5-16.2-12.8-31-27.9-42.4-42.4-10.3-12.9-20.7-28.2-30.8-46.6-21.3-38.5-26-55.7-26-55.7-6.7-20.8 14.2-41 33.3-51.8h.2c9.2-4.8 18-3.2 23.9 3.9 0 0 12.4 14.8 17.7 22.1 5 6.8 11.7 17.7 15.2 23.8 6.1 10.9 2.3 22-3.7 26.6l-12 9.6c-6.1 4.9-5.3 14-5.3 14s17.8 67.3 84.3 84.3c0 0 9.1.8 14-5.3l9.6-12c4.6-6 15.7-9.8 26.6-3.7 14.7 8.3 33.4 21.2 45.8 32.9 7 5.7 8.6 14.4 3.8 23.6z"/>
                                       </svg>
                                     ) : booking.contactChannel === 'messenger' ? (
-                                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#0084FF">
+                                      <svg className="w-5 h-5" viewBox="-2 -2 28 28" fill="#0084FF">
                                         <path d="M12 0C5.373 0 0 4.975 0 11.111c0 3.497 1.745 6.616 4.472 8.652V24l4.086-2.242c1.09.301 2.246.464 3.442.464 6.627 0 12-4.974 12-11.11C24 4.974 18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.259L19.752 8l-6.561 6.963z"/>
                                       </svg>
                                     ) : (
-                                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                       </svg>
                                     )}
@@ -762,26 +793,41 @@ function BookingsContent() {
                                   {format(parseISO(date), 'd MMM yyyy', { locale: el })}
                                 </td>
                               )}
-                              <td className="p-3 font-semibold">{booking.customerName}</td>
+                              <td className="p-3 font-semibold">
+                                <div className="flex items-center gap-2">
+                                  <span>{booking.customerName}</span>
+                                  {booking.extraBedEnabled && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path d="M21 16V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8"/>
+                                        <path d="M2 16h20"/>
+                                        <path d="M2 20h20"/>
+                                        <circle cx="7" cy="6" r="2"/>
+                                      </svg>
+                                      +1
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               <td className="p-3">{booking.property.name}</td>
                               <td className="p-3">{format(parseISO(booking.checkOut), 'd MMM yyyy', { locale: el })}</td>
                               <td className="p-3">
                                 {booking.contactInfo ? (
                                   <div className="flex items-center gap-2">
                                     {booking.contactChannel === 'email' ? (
-                                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                       </svg>
                                     ) : booking.contactChannel === 'viber' ? (
-                                      <svg className="w-4 h-4" viewBox="0 0 512 512" fill="#7360F2">
+                                      <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 512 512" fill="#7360F2">
                                         <path d="M444 49.9C431.3 38.2 379.9.9 265.3.4c0 0-135.1-8.1-200.9 52.3C27.8 89.3 14.9 143 13.5 209.5c-1.4 66.5-3.1 191.1 117 224.9h.1l-.1 51.6s-.8 20.9 13 25.1c16.6 5.2 26.4-10.7 42.3-27.8 8.7-9.4 20.7-23.2 29.8-33.7 82.2 6.9 145.3-8.9 152.5-11.2 16.6-5.4 110.5-17.4 125.7-142 15.8-128.6-7.6-209.8-49.8-246.5zM457.9 287c-12.9 104-89 110.6-103 115.1-6 1.9-61.5 15.7-131.2 11.2 0 0-52 62.7-68.2 79-5.3 5.3-11.1 4.8-11-5.7 0-6.9.4-85.7.4-85.7-.1 0-.1 0 0 0-101.8-28.2-95.8-134.3-94.7-189.8 1.1-55.5 11.6-101 42.6-131.6 55.7-50.5 170.4-43 170.4-43 96.9.4 143.3 29.6 154.1 39.4 35.7 30.6 53.9 103.8 40.6 211.1zm-139-80.8c.4 8.6-12.5 9.2-12.9.6-1.1-22-11.4-32.7-32.6-33.9-8.6-.5-7.8-13.4.7-12.9 27.9 1.5 43.4 17.5 44.8 46.2zm20.3 11.3c1-42.4-25.5-75.6-75.8-79.3-8.5-.6-7.6-13.5.9-12.9 58 4.2 88.9 44.1 87.8 92.5-.1 8.6-13.1 8.2-12.9-.3zm47 13.4c.1 8.6-12.9 8.7-12.9.1-.6-81.5-54.9-125.9-120.8-126.4-8.5-.1-8.5-12.9 0-12.9 73.7.5 133 51.4 133.7 139.2zM374.9 329v.2c-10.8 19-31 40-51.8 33.3l-.2-.3c-21.1-5.9-70.8-31.5-102.2-56.5-16.2-12.8-31-27.9-42.4-42.4-10.3-12.9-20.7-28.2-30.8-46.6-21.3-38.5-26-55.7-26-55.7-6.7-20.8 14.2-41 33.3-51.8h.2c9.2-4.8 18-3.2 23.9 3.9 0 0 12.4 14.8 17.7 22.1 5 6.8 11.7 17.7 15.2 23.8 6.1 10.9 2.3 22-3.7 26.6l-12 9.6c-6.1 4.9-5.3 14-5.3 14s17.8 67.3 84.3 84.3c0 0 9.1.8 14-5.3l9.6-12c4.6-6 15.7-9.8 26.6-3.7 14.7 8.3 33.4 21.2 45.8 32.9 7 5.7 8.6 14.4 3.8 23.6z"/>
                                       </svg>
                                     ) : booking.contactChannel === 'messenger' ? (
-                                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#0084FF">
+                                      <svg className="w-5 h-5 flex-shrink-0" viewBox="-2 -2 28 28" fill="#0084FF">
                                         <path d="M12 0C5.373 0 0 4.975 0 11.111c0 3.497 1.745 6.616 4.472 8.652V24l4.086-2.242c1.09.301 2.246.464 3.442.464 6.627 0 12-4.974 12-11.11C24 4.974 18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.259L19.752 8l-6.561 6.963z"/>
                                       </svg>
                                     ) : (
-                                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                       </svg>
                                     )}
