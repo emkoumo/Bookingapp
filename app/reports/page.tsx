@@ -543,8 +543,8 @@ function ReportsContent() {
                             {/* Header with Customer Name and Property */}
                             <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
                               <div className="flex items-center gap-2 mb-2">
-                                <div>
-                                  <h3 className="font-bold text-lg text-gray-900">
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="font-bold text-lg text-gray-900 truncate">
                                     {booking.customerName}
                                   </h3>
                                   {booking.extraBedEnabled && (
@@ -554,7 +554,7 @@ function ReportsContent() {
                                   )}
                                 </div>
                                 {booking.extraBedEnabled && (
-                                  <span className="pdf-badge inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
+                                  <span className="flex-shrink-0 pdf-badge inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
                                       <path d="M21 16V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8"/>
                                       <path d="M2 16h20"/>
