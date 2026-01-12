@@ -57,7 +57,10 @@ export async function POST(request: Request) {
       advancePayment,
       remainingBalance,
       advancePaymentMethod,
-      advancePaymentDate
+      advancePaymentDate,
+      extraBedEnabled,
+      extraBedPricePerNight,
+      extraBedTotal
     } = body
 
     if (!propertyId || !customerName || !checkIn || !checkOut) {
@@ -118,22 +121,30 @@ export async function POST(request: Request) {
       const missingDates: string[] = []
 
       for (const date of dates) {
+        // Format date as string for proper comparison (YYYY-MM-DD)
+        const dateStr = format(date, 'yyyy-MM-dd')
+
         const priceRange = await prisma.priceRange.findFirst({
           where: {
             propertyId,
             AND: [
-              { dateFrom: { lte: date } },
-              { dateTo: { gte: date } }
+              { dateFrom: { lte: new Date(dateStr + 'T23:59:59.999Z') } },
+              { dateTo: { gte: new Date(dateStr + 'T00:00:00.000Z') } }
             ]
           }
         })
 
         if (!priceRange) {
-          missingDates.push(format(date, 'yyyy-MM-dd'))
+          missingDates.push(dateStr)
         } else {
-          calculatedTotal += parseFloat(priceRange.pricePerNight.toString())
+          // Round each price to 2 decimal places before adding to avoid accumulation of floating-point errors
+          const price = Math.round(parseFloat(priceRange.pricePerNight.toString()) * 100) / 100
+          calculatedTotal += price
         }
       }
+
+      // Round final calculated total
+      calculatedTotal = Math.round(calculatedTotal * 100) / 100
 
       // If any dates are missing prices, block the booking
       if (missingDates.length > 0) {
@@ -163,7 +174,10 @@ export async function POST(request: Request) {
         advancePayment: advancePayment || null,
         remainingBalance: remainingBalance || (totalPrice ? totalPrice - (advancePayment || 0) : calculatedTotal),
         advancePaymentMethod: advancePaymentMethod || null,
-        advancePaymentDate: advancePaymentDate ? new Date(advancePaymentDate) : null
+        advancePaymentDate: advancePaymentDate ? new Date(advancePaymentDate) : null,
+        extraBedEnabled: extraBedEnabled || false,
+        extraBedPricePerNight: extraBedPricePerNight || null,
+        extraBedTotal: extraBedTotal || null
       },
       include: {
         property: {

@@ -12,11 +12,17 @@ interface Booking {
   id: string
   customerName: string
   contactInfo: string | null
+  contactChannel?: '' | 'phone' | 'email' | 'viber' | 'messenger'
   checkIn: string
   checkOut: string
   deposit: string | null
   notes: string | null
   status: string
+  totalPrice?: number
+  advancePayment?: number
+  remainingBalance?: number
+  advancePaymentMethod?: string
+  advancePaymentDate?: string
   property: Property
 }
 

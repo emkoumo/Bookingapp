@@ -51,6 +51,9 @@ model Booking {
   remainingBalance       Decimal? @db.Decimal(10, 2)
   advancePaymentMethod   String?
   advancePaymentDate     DateTime? @db.Date
+  extraBedEnabled        Boolean  @default(false)
+  extraBedPricePerNight  Decimal? @db.Decimal(10, 2)
+  extraBedTotal          Decimal? @db.Decimal(10, 2)
   property               Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])

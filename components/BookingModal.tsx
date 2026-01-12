@@ -37,6 +37,9 @@ interface BookingModalProps {
     remainingBalance?: number | null
     advancePaymentMethod?: string | null
     advancePaymentDate?: string | null
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number | null
+    extraBedTotal?: number | null
     perPropertyPrices?: { [propertyId: string]: number } // Added for multi-property bookings
     advancePaymentPerProperty?: { [propertyId: string]: number } // Split advance payment for multi-property bookings
   }) => void
@@ -55,6 +58,9 @@ interface BookingModalProps {
     remainingBalance?: number
     advancePaymentMethod?: string
     advancePaymentDate?: string
+    extraBedEnabled?: boolean
+    extraBedPricePerNight?: number
+    extraBedTotal?: number
   }
   isEdit?: boolean
   businessId?: string
@@ -102,6 +108,13 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   const [advancePaymentDate, setAdvancePaymentDate] = useState<string>(
     initialData?.advancePaymentDate || ''
   )
+  const [extraBedEnabled, setExtraBedEnabled] = useState<boolean>(
+    initialData?.extraBedEnabled || false
+  )
+  const [extraBedPricePerNight, setExtraBedPricePerNight] = useState<string>(
+    initialData?.extraBedPricePerNight ? Number(initialData.extraBedPricePerNight).toString() : '5.00'
+  )
+  const [extraBedTotal, setExtraBedTotal] = useState<number>(0)
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [dateConflicts, setDateConflicts] = useState<string[]>([])
   const [checkOutDisabledDates, setCheckOutDisabledDates] = useState<string[]>([])
@@ -186,13 +199,26 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }
   }, [customPrices, formData.propertyIds])
 
+  // Calculate extra bed total when enabled or nights/price changes
+  useEffect(() => {
+    if (extraBedEnabled && priceCalculation && priceCalculation.nightsCount) {
+      const pricePerNight = parseFloat(extraBedPricePerNight) || 0
+      const total = pricePerNight * priceCalculation.nightsCount
+      setExtraBedTotal(total)
+    } else {
+      setExtraBedTotal(0)
+    }
+  }, [extraBedEnabled, extraBedPricePerNight, priceCalculation])
+
   // Calculate remaining balance when advance payment changes
   useEffect(() => {
     if (priceCalculation && priceCalculation.success && priceCalculation.totalPrice) {
       const advance = parseFloat(advancePayment) || 0
-      setRemainingBalance(priceCalculation.totalPrice - advance)
+      const totalWithExtraBed = Math.round((priceCalculation.totalPrice + extraBedTotal) * 100) / 100
+      const remaining = Math.round((totalWithExtraBed - advance) * 100) / 100
+      setRemainingBalance(remaining)
     }
-  }, [advancePayment, priceCalculation])
+  }, [advancePayment, priceCalculation, extraBedTotal])
 
   // Calculate disabled dates when bookings or selected properties change
   useEffect(() => {
@@ -488,13 +514,20 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }
 
     // Include price data in submission
+    // Round to 2 decimal places to avoid floating-point precision issues
+    const calculatedTotal = Math.round(((priceCalculation?.totalPrice || 0) + extraBedTotal) * 100) / 100
+    const calculatedRemaining = Math.round(remainingBalance * 100) / 100
+
     const submissionData = {
       ...formData,
-      totalPrice: priceCalculation?.totalPrice,
+      totalPrice: calculatedTotal,
       advancePayment: totalAdvance || null,
-      remainingBalance: remainingBalance || null,
+      remainingBalance: calculatedRemaining || null,
       advancePaymentMethod: advancePaymentMethod || null,
       advancePaymentDate: advancePaymentDate || null,
+      extraBedEnabled: extraBedEnabled,
+      extraBedPricePerNight: extraBedEnabled ? Math.round((parseFloat(extraBedPricePerNight) || 0) * 100) / 100 : null,
+      extraBedTotal: extraBedEnabled ? Math.round(extraBedTotal * 100) / 100 : null,
       perPropertyPrices: priceCalculation?.perPropertyPrices, // Include per-property prices for multi-property bookings
       advancePaymentPerProperty // Include split advance payment for multi-property bookings
     }
@@ -799,12 +832,57 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-gray-700">Σύνολο:</span>
                       <span className="text-2xl font-bold text-blue-600">
-                        €{Number(priceCalculation.totalPrice).toFixed(2)}
+                        €{Number(priceCalculation.totalPrice + extraBedTotal).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
                       {priceCalculation.nightsCount} {priceCalculation.nightsCount === 1 ? 'νύχτα' : 'νύχτες'}
                     </div>
+                  </div>
+
+                  {/* Extra Παροχές Section */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-3">Extra Παροχές</h4>
+
+                    {/* Extra Bed */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={extraBedEnabled}
+                            onChange={(e) => setExtraBedEnabled(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span className="text-sm font-medium text-gray-700">Extra κρεβάτι</span>
+                      </div>
+
+                      {extraBedEnabled && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={extraBedPricePerNight}
+                            onChange={(e) => setExtraBedPricePerNight(e.target.value)}
+                            className="w-20 px-2 py-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                          />
+                          <span className="text-sm text-gray-600">€/βράδυ</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Extra Bed Total */}
+                    {extraBedEnabled && extraBedTotal > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-300">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Extra κρεβάτι σύνολο:</span>
+                          <span className="font-bold text-gray-900">€{extraBedTotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Advance Payment, Payment Method and Date */}
@@ -1050,12 +1128,57 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-gray-700">Σύνολο:</span>
                       <span className="text-2xl font-bold text-blue-600">
-                        €{Number(priceCalculation.totalPrice).toFixed(2)}
+                        €{Number(priceCalculation.totalPrice + extraBedTotal).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
                       {priceCalculation.nightsCount} {priceCalculation.nightsCount === 1 ? 'νύχτα' : 'νύχτες'}
                     </div>
+                  </div>
+
+                  {/* Extra Παροχές Section */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-3">Extra Παροχές</h4>
+
+                    {/* Extra Bed */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={extraBedEnabled}
+                            onChange={(e) => setExtraBedEnabled(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span className="text-sm font-medium text-gray-700">Extra κρεβάτι</span>
+                      </div>
+
+                      {extraBedEnabled && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={extraBedPricePerNight}
+                            onChange={(e) => setExtraBedPricePerNight(e.target.value)}
+                            className="w-20 px-2 py-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                          />
+                          <span className="text-sm text-gray-600">€/βράδυ</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Extra Bed Total */}
+                    {extraBedEnabled && extraBedTotal > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-300">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Extra κρεβάτι σύνολο:</span>
+                          <span className="font-bold text-gray-900">€{extraBedTotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Advance Payment, Payment Method and Date */}

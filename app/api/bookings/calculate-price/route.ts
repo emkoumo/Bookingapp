@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       if (!priceRange) {
         missingDates.push(dateStr)
       } else {
-        const price = parseFloat(priceRange.pricePerNight.toString())
+        // Round each price to 2 decimal places before adding to avoid accumulation of floating-point errors
+        const price = Math.round(parseFloat(priceRange.pricePerNight.toString()) * 100) / 100
         breakdown.push({
           date: dateStr,
           price
