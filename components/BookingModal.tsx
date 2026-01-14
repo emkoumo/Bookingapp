@@ -233,6 +233,19 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       const checkInDate = parseISO(formData.checkIn)
       const additionalDisabledDates: string[] = []
 
+      // Get all check-in dates from existing bookings (these should be allowed as checkout dates)
+      const checkInDatesOfOtherBookings: string[] = []
+      formData.propertyIds.forEach((propertyId) => {
+        const propertyBookings = bookings.filter(
+          (b) => b.property.id === propertyId &&
+                 b.id !== currentBookingId &&
+                 b.status === 'active'
+        )
+        propertyBookings.forEach((booking) => {
+          checkInDatesOfOtherBookings.push(format(parseISO(booking.checkIn), 'yyyy-MM-dd'))
+        })
+      })
+
       // For each potential check-out date in the future
       // Check if there are any disabled dates between check-in and that date
       // If yes, disable that check-out date
@@ -258,11 +271,16 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         }
       }
 
-      setCheckOutDisabledDates([...disabledDates, ...additionalDisabledDates])
+      // Exclude check-in dates of other bookings from disabled dates (allow same-day turnover)
+      const checkOutDisabled = [...disabledDates, ...additionalDisabledDates].filter(
+        date => !checkInDatesOfOtherBookings.includes(date)
+      )
+
+      setCheckOutDisabledDates(checkOutDisabled)
     } else {
       setCheckOutDisabledDates(disabledDates)
     }
-  }, [formData.checkIn, disabledDates, isEdit])
+  }, [formData.checkIn, disabledDates, isEdit, formData.propertyIds, bookings, currentBookingId])
 
   // Check for date conflicts in real-time
   useEffect(() => {
@@ -404,7 +422,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         try {
           const start = parseISO(booking.checkIn)
           const end = parseISO(booking.checkOut)
-          const dates = eachDayOfInterval({ start, end })
+          // Subtract 1 day from end to exclude checkout day (guest leaves in morning)
+          const endMinusOne = new Date(end.getTime() - 24 * 60 * 60 * 1000)
+          const dates = eachDayOfInterval({ start, end: endMinusOne })
           dates.forEach((date) => {
             const dateStr = format(date, 'yyyy-MM-dd')
             if (!disabled.includes(dateStr)) {

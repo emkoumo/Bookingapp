@@ -122,6 +122,14 @@ export default function ScrollableCalendar({
     return hasCheckOut && hasCheckIn
   }
 
+  const getCheckInBookingForDate = (date: Date, propertyId: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return activeBookings.find((booking) => {
+      if (booking.property.id !== propertyId) return false
+      return format(new Date(booking.checkIn), 'yyyy-MM-dd') === dateStr
+    })
+  }
+
   const weekDays = ['Δ', 'Τ', 'Τ', 'Π', 'Π', 'Σ', 'Κ']
 
   // If only 1 property selected, show months in grid
@@ -170,6 +178,7 @@ export default function ScrollableCalendar({
                     const booking = getBookingForDate(day, property.id)
                     const isChangeover = isChangeoverDay(day, property.id)
                     const isFirstDay = isFirstDayOfBooking(day, property.id)
+                    const checkInBooking = getCheckInBookingForDate(day, property.id)
 
                     return (
                       <div
@@ -177,7 +186,7 @@ export default function ScrollableCalendar({
                         onClick={() => booking && onBookingClick(booking)}
                         style={{
                           backgroundColor: isBooked
-                            ? (isFirstDay && !isChangeover ? '#2d8a6e' : '#40af90')
+                            ? (isFirstDay ? '#2d8a6e' : '#40af90')
                             : '#f9f9f9'
                         }}
                         className={`
@@ -196,14 +205,15 @@ export default function ScrollableCalendar({
                         <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>
                           {format(day, 'd')}
                         </div>
-                        {isChangeover && (
-                          <div className="absolute top-0 right-0 w-1.5 h-1.5 md:w-2 md:h-2 bg-orange-400 rounded-full" />
-                        )}
-                        {booking && isFirstDay && !isChangeover && (
+                        {isChangeover && checkInBooking ? (
+                          <div className="text-[7px] md:text-[10px] leading-tight truncate w-full px-0.5 opacity-90 text-center">
+                            {checkInBooking.customerName.split(' ')[0]}
+                          </div>
+                        ) : booking && isFirstDay && !isChangeover ? (
                           <div className="text-[7px] md:text-[10px] leading-tight truncate w-full px-0.5 opacity-90 text-center">
                             {booking.customerName.split(' ')[0]}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )
                   })}
@@ -274,6 +284,7 @@ export default function ScrollableCalendar({
                       const booking = getBookingForDate(day, property.id)
                       const isChangeover = isChangeoverDay(day, property.id)
                       const isFirstDay = isFirstDayOfBooking(day, property.id)
+                      const checkInBooking = getCheckInBookingForDate(day, property.id)
 
                       return (
                         <div
@@ -281,7 +292,7 @@ export default function ScrollableCalendar({
                           onClick={() => booking && onBookingClick(booking)}
                           style={{
                             backgroundColor: isBooked
-                              ? (isFirstDay && !isChangeover ? '#2d8a6e' : '#40af90')
+                              ? (isFirstDay ? '#2d8a6e' : '#40af90')
                               : '#f9f9f9'
                           }}
                           className={`
@@ -300,14 +311,15 @@ export default function ScrollableCalendar({
                           <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>
                             {format(day, 'd')}
                           </div>
-                          {isChangeover && (
-                            <div className="absolute top-0 right-0 w-1.5 h-1.5 md:w-2 md:h-2 bg-orange-400 rounded-full" />
-                          )}
-                          {booking && isFirstDay && !isChangeover && (
+                          {isChangeover && checkInBooking ? (
+                            <div className="text-[7px] md:text-[10px] leading-tight truncate w-full px-0.5 opacity-90 text-center">
+                              {checkInBooking.customerName.split(' ')[0]}
+                            </div>
+                          ) : booking && isFirstDay && !isChangeover ? (
                             <div className="text-[7px] md:text-[10px] leading-tight truncate w-full px-0.5 opacity-90 text-center">
                               {booking.customerName.split(' ')[0]}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       )
                     })}
