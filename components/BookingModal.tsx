@@ -144,7 +144,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   // Calculate price when dates change (for both single and multi-property bookings)
   useEffect(() => {
     if (formData.checkIn && formData.checkOut && formData.propertyIds.length > 0) {
-      // Always calculate to get the total and breakdown
+      // Always calculate to get the breakdown (needed for UI)
       if (formData.propertyIds.length === 1) {
         // Single property: get detailed breakdown
         calculatePrice()
@@ -164,6 +164,31 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       }
     }
   }, [formData.checkIn, formData.checkOut, formData.propertyIds])
+
+  // In edit mode, pre-populate custom prices with saved prices
+  useEffect(() => {
+    if (isEdit && initialData && priceCalculation && priceCalculation.breakdown &&
+        formData.checkIn === initialData.checkIn &&
+        formData.checkOut === initialData.checkOut &&
+        initialData.totalPrice &&
+        Object.keys(customPrices).length === 0) {
+      // Calculate average price per night from saved total
+      const savedTotal = Number(initialData.totalPrice)
+      const nightsCount = priceCalculation.breakdown.length
+      const averagePricePerNight = Math.round((savedTotal / nightsCount) * 100) / 100
+
+      // Set custom prices for all individual dates to the average
+      const initialCustomPrices: { [key: string]: number } = {}
+      priceCalculation.breakdown.forEach((item) => {
+        initialCustomPrices[item.date] = averagePricePerNight
+      })
+
+      // Set group_0 which will be used when all dates have the same price
+      initialCustomPrices['group_0'] = averagePricePerNight
+
+      setCustomPrices(initialCustomPrices)
+    }
+  }, [priceCalculation, isEdit, initialData, formData.checkIn, formData.checkOut])
 
   // Recalculate total when custom prices change
   useEffect(() => {
@@ -343,7 +368,20 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       })
 
       const data = await res.json()
-      setPriceCalculation(data)
+
+      // In edit mode with unchanged dates, preserve the saved total price
+      if (isEdit && initialData &&
+          formData.checkIn === initialData.checkIn &&
+          formData.checkOut === initialData.checkOut &&
+          initialData.totalPrice) {
+        // Keep the breakdown for editing UI, but use saved total
+        setPriceCalculation({
+          ...data,
+          totalPrice: Number(initialData.totalPrice)
+        })
+      } else {
+        setPriceCalculation(data)
+      }
     } catch (error) {
       console.error('Error calculating price:', error)
       setPriceCalculation({
@@ -388,9 +426,17 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
           perPropertyPrices[propertyId] = pricePerProperty
         })
 
+        // In edit mode with unchanged dates, preserve the saved total price
+        const finalTotal = (isEdit && initialData &&
+                           formData.checkIn === initialData.checkIn &&
+                           formData.checkOut === initialData.checkOut &&
+                           initialData.totalPrice)
+          ? Number(initialData.totalPrice)
+          : combinedTotal
+
         setPriceCalculation({
           success: true,
-          totalPrice: combinedTotal,
+          totalPrice: finalTotal,
           nightsCount: data.nightsCount || 0,
           breakdown: data.breakdown, // Include breakdown for UI
           perPropertyPrices
@@ -777,16 +823,14 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                       const value = e.target.value
                                       const numValue = parseFloat(value)
                                       if (!isNaN(numValue) && numValue >= 0) {
-                                        setCustomPrices(prev => ({
-                                          ...prev,
-                                          [groupKey]: numValue
-                                        }))
-                                        // Apply this price to all dates in this group
-                                        group.dates.forEach(item => {
-                                          setCustomPrices(prev => ({
-                                            ...prev,
-                                            [item.date]: numValue
-                                          }))
+                                        // Apply this price to group key and all dates in a single update
+                                        setCustomPrices(prev => {
+                                          const updated = { ...prev, [groupKey]: numValue }
+                                          // Apply to all individual dates in this group
+                                          group.dates.forEach(item => {
+                                            updated[item.date] = numValue
+                                          })
+                                          return updated
                                         })
                                       }
                                     }}
@@ -1055,16 +1099,14 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                     const value = e.target.value
                                     const numValue = parseFloat(value)
                                     if (!isNaN(numValue) && numValue >= 0) {
-                                      setCustomPrices(prev => ({
-                                        ...prev,
-                                        [groupKey]: numValue
-                                      }))
-                                      // Apply this price to all dates in this group
-                                      group.dates.forEach(item => {
-                                        setCustomPrices(prev => ({
-                                          ...prev,
-                                          [item.date]: numValue
-                                        }))
+                                      // Apply this price to group key and all dates in a single update
+                                      setCustomPrices(prev => {
+                                        const updated = { ...prev, [groupKey]: numValue }
+                                        // Apply to all individual dates in this group
+                                        group.dates.forEach(item => {
+                                          updated[item.date] = numValue
+                                        })
+                                        return updated
                                       })
                                     }
                                   }}
