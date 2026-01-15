@@ -95,7 +95,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       nightsCount: Math.ceil((new Date(initialData.checkOut).getTime() - new Date(initialData.checkIn).getTime()) / (1000 * 60 * 60 * 24))
     } : null
   )
-  const [customPrices, setCustomPrices] = useState<{ [date: string]: number }>({})
+  const [customPrices, setCustomPrices] = useState<{ [date: string]: number | '' }>({})
   const [advancePayment, setAdvancePayment] = useState<string>(
     initialData?.advancePayment ? Number(initialData.advancePayment).toString() : ''
   )
@@ -204,7 +204,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         // Calculate new total from breakdown with custom prices (per property)
         const pricePerProperty = priceCalculation.breakdown.reduce((sum, item) => {
           const customPrice = customPrices[item.date]
-          return sum + (customPrice !== undefined ? customPrice : item.price)
+          // If custom price is empty string (user is typing), use original price
+          return sum + (customPrice !== undefined && customPrice !== '' ? customPrice : item.price)
         }, 0)
 
         const roundedPricePerProperty = Math.round(pricePerProperty * 100) / 100
