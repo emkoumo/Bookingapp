@@ -832,8 +832,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                           // Check if this group has been customized
                           const groupKey = `group_${groupIndex}`
                           const isCustom = customPrices[groupKey] !== undefined
-                          const displayPrice = isCustom ? customPrices[groupKey] : group.price
-                          const subtotal = displayPrice * group.dates.length
+                          const displayPrice = isCustom ? (customPrices[groupKey] === '' ? '' : customPrices[groupKey]) : group.price
+                          const subtotal = (displayPrice === '' ? 0 : displayPrice) * group.dates.length
 
                           // Get date range for this specific group
                           const groupStartDate = group.dates[0].date
@@ -863,6 +863,17 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                     value={displayPrice}
                                     onChange={(e) => {
                                       const value = e.target.value
+                                      // Allow empty value while editing
+                                      if (value === '') {
+                                        setCustomPrices(prev => {
+                                          const updated = { ...prev, [groupKey]: '' }
+                                          group.dates.forEach(item => {
+                                            updated[item.date] = ''
+                                          })
+                                          return updated
+                                        })
+                                        return
+                                      }
                                       const numValue = parseFloat(value)
                                       if (!isNaN(numValue) && numValue >= 0) {
                                         // Apply this price to group key and all dates in a single update
@@ -1155,8 +1166,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                       {groupByPrice(priceCalculation.breakdown).map((group, groupIndex) => {
                         const groupKey = `group_${groupIndex}`
                         const isCustom = customPrices[groupKey] !== undefined
-                        const displayPrice = isCustom ? customPrices[groupKey] : group.price
-                        const subtotal = displayPrice * group.dates.length
+                        const displayPrice = isCustom ? (customPrices[groupKey] === '' ? '' : customPrices[groupKey]) : group.price
+                        const subtotal = (displayPrice === '' ? 0 : displayPrice) * group.dates.length
 
                         // Get date range for this specific group
                         const groupStartDate = group.dates[0].date
@@ -1186,6 +1197,17 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                   value={displayPrice}
                                   onChange={(e) => {
                                     const value = e.target.value
+                                    // Allow empty value while editing
+                                    if (value === '') {
+                                      setCustomPrices(prev => {
+                                        const updated = { ...prev, [groupKey]: '' }
+                                        group.dates.forEach(item => {
+                                          updated[item.date] = ''
+                                        })
+                                        return updated
+                                      })
+                                      return
+                                    }
                                     const numValue = parseFloat(value)
                                     if (!isNaN(numValue) && numValue >= 0) {
                                       // Apply this price to group key and all dates in a single update
