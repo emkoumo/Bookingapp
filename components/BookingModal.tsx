@@ -165,28 +165,34 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }
   }, [formData.checkIn, formData.checkOut, formData.propertyIds])
 
-  // In edit mode, pre-populate custom prices with saved prices
+  // In edit mode, pre-populate custom prices ONLY if saved price differs from calculated price
   useEffect(() => {
     if (isEdit && initialData && priceCalculation && priceCalculation.breakdown &&
         formData.checkIn === initialData.checkIn &&
         formData.checkOut === initialData.checkOut &&
         initialData.totalPrice &&
         Object.keys(customPrices).length === 0) {
-      // Calculate average price per night from saved total
       const savedTotal = Number(initialData.totalPrice)
-      const nightsCount = priceCalculation.breakdown.length
-      const averagePricePerNight = Math.round((savedTotal / nightsCount) * 100) / 100
+      const calculatedTotal = priceCalculation.totalPrice || 0
 
-      // Set custom prices for all individual dates to the average
-      const initialCustomPrices: { [key: string]: number } = {}
-      priceCalculation.breakdown.forEach((item) => {
-        initialCustomPrices[item.date] = averagePricePerNight
-      })
+      // Only set custom prices if the saved total is different from calculated total
+      // This means the price was actually customized
+      if (Math.abs(savedTotal - calculatedTotal) > 0.01) {
+        // Calculate average price per night from saved total
+        const nightsCount = priceCalculation.breakdown.length
+        const averagePricePerNight = Math.round((savedTotal / nightsCount) * 100) / 100
 
-      // Set group_0 which will be used when all dates have the same price
-      initialCustomPrices['group_0'] = averagePricePerNight
+        // Set custom prices for all individual dates to the average
+        const initialCustomPrices: { [key: string]: number } = {}
+        priceCalculation.breakdown.forEach((item) => {
+          initialCustomPrices[item.date] = averagePricePerNight
+        })
 
-      setCustomPrices(initialCustomPrices)
+        // Set group_0 which will be used when all dates have the same price
+        initialCustomPrices['group_0'] = averagePricePerNight
+
+        setCustomPrices(initialCustomPrices)
+      }
     }
   }, [priceCalculation, isEdit, initialData, formData.checkIn, formData.checkOut])
 
@@ -368,20 +374,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       })
 
       const data = await res.json()
-
-      // In edit mode with unchanged dates, preserve the saved total price
-      if (isEdit && initialData &&
-          formData.checkIn === initialData.checkIn &&
-          formData.checkOut === initialData.checkOut &&
-          initialData.totalPrice) {
-        // Keep the breakdown for editing UI, but use saved total
-        setPriceCalculation({
-          ...data,
-          totalPrice: Number(initialData.totalPrice)
-        })
-      } else {
-        setPriceCalculation(data)
-      }
+      setPriceCalculation(data)
     } catch (error) {
       console.error('Error calculating price:', error)
       setPriceCalculation({
@@ -505,7 +498,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }> = []
 
     breakdown.forEach((item) => {
-      const currentPrice = customPrices[item.date] !== undefined ? customPrices[item.date] : item.price
+      // Use ONLY the original price for grouping, not custom prices
+      // This keeps groups stable when custom prices change
+      const currentPrice = item.price
       const lastGroup = groups[groups.length - 1]
 
       // If same price as last group and consecutive date, add to that group
@@ -782,6 +777,56 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                       {isPriceExpanded && (
                         <div className="p-4 pt-3 border-t border-gray-200">
 
+                      {/* Full Booking Date Range Header - Shown Once */}
+                      {formData.checkIn && formData.checkOut && (
+                        <div className="mb-4 grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-lg p-2.5">
+                          {/* Check-in */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
+                              <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                {format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Check-out */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
+                              <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                {format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Nights */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
+                              <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                {priceCalculation.nightsCount || 0}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3">
                         {groupByPrice(priceCalculation.breakdown).map((group, groupIndex) => {
                           // Check if this group has been customized
@@ -790,55 +835,18 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                           const displayPrice = isCustom ? customPrices[groupKey] : group.price
                           const subtotal = displayPrice * group.dates.length
 
+                          // Get date range for this specific group
+                          const groupStartDate = group.dates[0].date
+                          const groupEndDate = group.dates[group.dates.length - 1].date
+
                           return (
-                            <div key={groupIndex} className={`border-2 rounded-lg pb-4 transition-colors ${
+                            <div key={groupIndex} className={`border-2 rounded-lg transition-colors ${
                               isCustom ? 'bg-orange-50 border-orange-400' : 'bg-gray-50 border-gray-200'
                             }`}>
-                              {/* Date Range Header with Icons */}
-                              <div className="grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-t-lg p-2.5">
-                                {/* Check-in */}
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                                    <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                    </svg>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
-                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                      {formData.checkIn ? format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el }) : '-'}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Check-out */}
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                    </svg>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
-                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                      {formData.checkOut ? format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el }) : '-'}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Nights */}
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                    <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                                    </svg>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
-                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                      {priceCalculation.nightsCount || group.dates.length}
-                                    </div>
-                                  </div>
+                              {/* Simple Date Range for this group */}
+                              <div className="px-4 py-3 border-b border-gray-200">
+                                <div className="text-sm text-gray-600">
+                                  {format(parseISO(groupStartDate), 'd MMM', { locale: el })} - {format(parseISO(groupEndDate), 'd MMM yyyy', { locale: el })} ({group.dates.length} {group.dates.length === 1 ? 'νύχτα' : 'νύχτες'})
                                 </div>
                               </div>
 
@@ -900,7 +908,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                               </div>
 
                               {/* Subtotal */}
-                              <div className="mt-3 pt-3 px-4 border-t border-gray-300 flex justify-between items-center">
+                              <div className="px-4 py-3 border-t border-gray-300 flex justify-between items-center">
                                 <span className="text-sm text-gray-600">Υποσύνολο:</span>
                                 <span className="text-lg font-bold text-gray-800">
                                   €{subtotal.toFixed(2)}
@@ -1093,6 +1101,56 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     {isPriceExpanded && (
                       <div className="p-4 pt-3 border-t border-gray-200">
 
+                    {/* Full Booking Date Range Header - Shown Once */}
+                    {formData.checkIn && formData.checkOut && (
+                      <div className="mb-4 grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-lg p-2.5">
+                        {/* Check-in */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
+                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                              {format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Check-out */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
+                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                              {format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nights */}
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
+                            <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                              {priceCalculation.nightsCount || 0}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       {groupByPrice(priceCalculation.breakdown).map((group, groupIndex) => {
                         const groupKey = `group_${groupIndex}`
@@ -1100,55 +1158,18 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                         const displayPrice = isCustom ? customPrices[groupKey] : group.price
                         const subtotal = displayPrice * group.dates.length
 
+                        // Get date range for this specific group
+                        const groupStartDate = group.dates[0].date
+                        const groupEndDate = group.dates[group.dates.length - 1].date
+
                         return (
-                          <div key={groupIndex} className={`border-2 rounded-lg pb-4 transition-colors ${
+                          <div key={groupIndex} className={`border-2 rounded-lg transition-colors ${
                             isCustom ? 'bg-orange-50 border-orange-400' : 'bg-gray-50 border-gray-200'
                           }`}>
-                            {/* Date Range Header with Icons */}
-                            <div className="grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-t-lg p-2.5">
-                              {/* Check-in */}
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
-                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                    {formData.checkIn ? format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el }) : '-'}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Check-out */}
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
-                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                    {formData.checkOut ? format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el }) : '-'}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Nights */}
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
-                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
-                                    {priceCalculation.nightsCount || group.dates.length}
-                                  </div>
-                                </div>
+                            {/* Simple Date Range for this group */}
+                            <div className="px-4 py-3 border-b border-gray-200">
+                              <div className="text-sm text-gray-600">
+                                {format(parseISO(groupStartDate), 'd MMM', { locale: el })} - {format(parseISO(groupEndDate), 'd MMM yyyy', { locale: el })} ({group.dates.length} {group.dates.length === 1 ? 'νύχτα' : 'νύχτες'})
                               </div>
                             </div>
 
@@ -1210,7 +1231,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                             </div>
 
                             {/* Subtotal per property */}
-                            <div className="mt-3 pt-3 px-4 border-t border-gray-300 flex justify-between items-center">
+                            <div className="px-4 py-3 border-t border-gray-300 flex justify-between items-center">
                               <span className="text-sm text-gray-600">Υποσύνολο:</span>
                               <span className="text-lg font-bold text-gray-800">
                                 €{subtotal.toFixed(2)}
