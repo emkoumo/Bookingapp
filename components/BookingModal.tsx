@@ -183,7 +183,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         const averagePricePerNight = Math.round((savedTotal / nightsCount) * 100) / 100
 
         // Set custom prices for all individual dates to the average
-        const initialCustomPrices: { [key: string]: number } = {}
+        const initialCustomPrices: { [key: string]: number | '' } = {}
         priceCalculation.breakdown.forEach((item) => {
           initialCustomPrices[item.date] = averagePricePerNight
         })
@@ -525,14 +525,14 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   const handlePriceChange = (date: string, value: string) => {
     const numValue = parseFloat(value)
     if (!isNaN(numValue) && numValue >= 0) {
-      setCustomPrices(prev => ({
-        ...prev,
-        [date]: numValue
-      }))
+      setCustomPrices(prev => {
+        const updated: { [date: string]: number | '' } = { ...prev, [date]: numValue }
+        return updated
+      })
     } else if (value === '') {
       // Reset to original price
       setCustomPrices(prev => {
-        const newPrices = { ...prev }
+        const newPrices: { [date: string]: number | '' } = { ...prev }
         delete newPrices[date]
         return newPrices
       })
@@ -867,7 +867,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                       // Allow empty value while editing
                                       if (value === '') {
                                         setCustomPrices(prev => {
-                                          const updated = { ...prev, [groupKey]: '' }
+                                          const updated: { [date: string]: number | '' } = { ...prev, [groupKey]: '' }
                                           group.dates.forEach(item => {
                                             updated[item.date] = ''
                                           })
@@ -879,7 +879,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                       if (!isNaN(numValue) && numValue >= 0) {
                                         // Apply this price to group key and all dates in a single update
                                         setCustomPrices(prev => {
-                                          const updated = { ...prev, [groupKey]: numValue }
+                                          const updated: { [date: string]: number | '' } = { ...prev, [groupKey]: numValue }
                                           // Apply to all individual dates in this group
                                           group.dates.forEach(item => {
                                             updated[item.date] = numValue
@@ -900,7 +900,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                       onClick={() => {
                                         // Reset group price
                                         setCustomPrices(prev => {
-                                          const newPrices = { ...prev }
+                                          const newPrices: { [date: string]: number | '' } = { ...prev }
                                           delete newPrices[groupKey]
                                           // Also reset individual date prices in this group
                                           group.dates.forEach(item => {
@@ -1201,7 +1201,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                     // Allow empty value while editing
                                     if (value === '') {
                                       setCustomPrices(prev => {
-                                        const updated = { ...prev, [groupKey]: '' }
+                                        const updated: { [date: string]: number | '' } = { ...prev, [groupKey]: '' }
                                         group.dates.forEach(item => {
                                           updated[item.date] = ''
                                         })
@@ -1213,7 +1213,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                     if (!isNaN(numValue) && numValue >= 0) {
                                       // Apply this price to group key and all dates in a single update
                                       setCustomPrices(prev => {
-                                        const updated = { ...prev, [groupKey]: numValue }
+                                        const updated: { [date: string]: number | '' } = { ...prev, [groupKey]: numValue }
                                         // Apply to all individual dates in this group
                                         group.dates.forEach(item => {
                                           updated[item.date] = numValue
@@ -1234,7 +1234,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                     onClick={() => {
                                       // Reset group price
                                       setCustomPrices(prev => {
-                                        const newPrices = { ...prev }
+                                        const newPrices: { [date: string]: number | '' } = { ...prev }
                                         delete newPrices[groupKey]
                                         // Also reset individual date prices in this group
                                         group.dates.forEach(item => {
