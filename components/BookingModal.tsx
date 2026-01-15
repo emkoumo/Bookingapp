@@ -791,25 +791,59 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                           const subtotal = displayPrice * group.dates.length
 
                           return (
-                            <div key={groupIndex} className={`border-2 rounded-lg p-4 transition-colors ${
+                            <div key={groupIndex} className={`border-2 rounded-lg pb-4 transition-colors ${
                               isCustom ? 'bg-orange-50 border-orange-400' : 'bg-gray-50 border-gray-200'
                             }`}>
-                              {/* Date Range Header */}
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="text-sm font-semibold text-gray-700">
-                                  {group.dateFrom === group.dateTo ? (
-                                    format(parseISO(group.dateFrom), 'd MMM yyyy', { locale: el })
-                                  ) : (
-                                    <>
-                                      {format(parseISO(group.dateFrom), 'd MMM', { locale: el })} - {format(parseISO(group.dateTo), 'd MMM yyyy', { locale: el })}
-                                    </>
-                                  )}
-                                  <span className="ml-2 text-xs text-gray-500">({group.dates.length} {group.dates.length === 1 ? 'νύχτα' : 'νύχτες'})</span>
+                              {/* Date Range Header with Icons */}
+                              <div className="grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-t-lg p-2.5">
+                                {/* Check-in */}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
+                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                      {formData.checkIn ? format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el }) : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Check-out */}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
+                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                      {formData.checkOut ? format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el }) : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Nights */}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
+                                    <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                      {priceCalculation.nightsCount || group.dates.length}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
 
                               {/* Price Input */}
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 px-4 py-3">
                                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                                   Τιμή / νύχτα:
                                 </label>
@@ -866,7 +900,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                               </div>
 
                               {/* Subtotal */}
-                              <div className="mt-3 pt-3 border-t border-gray-300 flex justify-between items-center">
+                              <div className="mt-3 pt-3 px-4 border-t border-gray-300 flex justify-between items-center">
                                 <span className="text-sm text-gray-600">Υποσύνολο:</span>
                                 <span className="text-lg font-bold text-gray-800">
                                   €{subtotal.toFixed(2)}
@@ -1067,25 +1101,59 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                         const subtotal = displayPrice * group.dates.length
 
                         return (
-                          <div key={groupIndex} className={`border-2 rounded-lg p-4 transition-colors ${
+                          <div key={groupIndex} className={`border-2 rounded-lg pb-4 transition-colors ${
                             isCustom ? 'bg-orange-50 border-orange-400' : 'bg-gray-50 border-gray-200'
                           }`}>
-                            {/* Date Range Header */}
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="text-sm font-semibold text-gray-700">
-                                {group.dateFrom === group.dateTo ? (
-                                  format(parseISO(group.dateFrom), 'd MMM yyyy', { locale: el })
-                                ) : (
-                                  <>
-                                    {format(parseISO(group.dateFrom), 'd MMM', { locale: el })} - {format(parseISO(group.dateTo), 'd MMM yyyy', { locale: el })}
-                                  </>
-                                )}
-                                <span className="ml-2 text-xs text-gray-500">({group.dates.length} {group.dates.length === 1 ? 'νύχτα' : 'νύχτες'})</span>
+                            {/* Date Range Header with Icons */}
+                            <div className="grid grid-cols-3 gap-12 bg-white border border-gray-200 rounded-t-lg p-2.5">
+                              {/* Check-in */}
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-in</div>
+                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                    {formData.checkIn ? format(parseISO(formData.checkIn), 'd MMM yyyy', { locale: el }) : '-'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Check-out */}
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Check-out</div>
+                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                    {formData.checkOut ? format(parseISO(formData.checkOut), 'd MMM yyyy', { locale: el }) : '-'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Nights */}
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] text-gray-500 whitespace-nowrap">Nights</div>
+                                  <div className="text-xs font-semibold text-gray-900 whitespace-nowrap">
+                                    {priceCalculation.nightsCount || group.dates.length}
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
                             {/* Price Input */}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 px-4 py-3">
                               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                                 Τιμή / νύχτα:
                               </label>
@@ -1142,7 +1210,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                             </div>
 
                             {/* Subtotal per property */}
-                            <div className="mt-3 pt-3 border-t border-gray-300 flex justify-between items-center">
+                            <div className="mt-3 pt-3 px-4 border-t border-gray-300 flex justify-between items-center">
                               <span className="text-sm text-gray-600">Υποσύνολο:</span>
                               <span className="text-lg font-bold text-gray-800">
                                 €{subtotal.toFixed(2)}
