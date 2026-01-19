@@ -204,14 +204,17 @@ function BookingsContent() {
           ? data.perPropertyPrices[propertyId]
           : data.totalPrice
 
-        let individualAdvance = data.advancePayment
-        let individualRemaining = data.remainingBalance
+        let individualAdvance = data.advancePayment || 0
+        let individualRemaining = data.remainingBalance || 0
 
-        if (data.propertyIds.length > 1 && data.perPropertyPrices && data.advancePayment) {
-          const totalAllProperties = data.totalPrice || 0
-          const proportion = individualPrice ? individualPrice / totalAllProperties : 0
-          individualAdvance = Math.round(data.advancePayment * proportion * 100) / 100
-          individualRemaining = individualPrice ? individualPrice - individualAdvance : 0
+        // For multi-property bookings, split advance payment and recalculate remaining
+        if (data.propertyIds.length > 1) {
+          // Split advance payment equally
+          if (data.advancePayment) {
+            individualAdvance = Math.round((data.advancePayment / data.propertyIds.length) * 100) / 100
+          }
+          // Recalculate remaining based on individual price
+          individualRemaining = individualPrice ? Math.round((individualPrice - individualAdvance) * 100) / 100 : 0
         }
 
         return fetch('/api/bookings', {
