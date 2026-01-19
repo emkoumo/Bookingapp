@@ -130,6 +130,20 @@ export default function ScrollableCalendar({
     })
   }
 
+  const isCheckoutOnlyDay = (date: Date, propertyId: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const hasCheckOut = activeBookings.some((booking) => {
+      if (booking.property.id !== propertyId) return false
+      return format(new Date(booking.checkOut), 'yyyy-MM-dd') === dateStr
+    })
+    const hasCheckIn = activeBookings.some((booking) => {
+      if (booking.property.id !== propertyId) return false
+      return format(new Date(booking.checkIn), 'yyyy-MM-dd') === dateStr
+    })
+    // It's checkout-only if there's a checkout but NO check-in
+    return hasCheckOut && !hasCheckIn
+  }
+
   const weekDays = ['Δ', 'Τ', 'Τ', 'Π', 'Π', 'Σ', 'Κ']
 
   // If only 1 property selected, show months in grid
@@ -179,6 +193,7 @@ export default function ScrollableCalendar({
                     const isChangeover = isChangeoverDay(day, property.id)
                     const isFirstDay = isFirstDayOfBooking(day, property.id)
                     const checkInBooking = getCheckInBookingForDate(day, property.id)
+                    const isCheckoutOnly = isCheckoutOnlyDay(day, property.id)
 
                     return (
                       <div
@@ -186,7 +201,7 @@ export default function ScrollableCalendar({
                         onClick={() => booking && onBookingClick(booking)}
                         style={{
                           backgroundColor: isBooked
-                            ? (isFirstDay ? '#2d8a6e' : '#40af90')
+                            ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
                             : '#f9f9f9'
                         }}
                         className={`
@@ -199,7 +214,8 @@ export default function ScrollableCalendar({
                           }
                           ${isToday && !isBooked ? 'ring-2 ring-blue-500' : ''}
                           ${isChangeover ? 'ring-2 ring-orange-400' : ''}
-                          ${isFirstDay && booking && !isChangeover ? 'ring-1 ring-[#333]' : ''}
+                          ${isCheckoutOnly ? 'ring-2 ring-red-400' : ''}
+                          ${isFirstDay && booking && !isChangeover && !isCheckoutOnly ? 'ring-1 ring-[#333]' : ''}
                         `}
                       >
                         <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>
@@ -285,6 +301,7 @@ export default function ScrollableCalendar({
                       const isChangeover = isChangeoverDay(day, property.id)
                       const isFirstDay = isFirstDayOfBooking(day, property.id)
                       const checkInBooking = getCheckInBookingForDate(day, property.id)
+                      const isCheckoutOnly = isCheckoutOnlyDay(day, property.id)
 
                       return (
                         <div
@@ -292,7 +309,7 @@ export default function ScrollableCalendar({
                           onClick={() => booking && onBookingClick(booking)}
                           style={{
                             backgroundColor: isBooked
-                              ? (isFirstDay ? '#2d8a6e' : '#40af90')
+                              ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
                               : '#f9f9f9'
                           }}
                           className={`
@@ -305,7 +322,8 @@ export default function ScrollableCalendar({
                             }
                             ${isToday && !isBooked ? 'ring-2 ring-blue-500' : ''}
                             ${isChangeover ? 'ring-2 ring-orange-400' : ''}
-                            ${isFirstDay && booking && !isChangeover ? 'ring-1 ring-[#333]' : ''}
+                            ${isCheckoutOnly ? 'ring-2 ring-red-400' : ''}
+                            ${isFirstDay && booking && !isChangeover && !isCheckoutOnly ? 'ring-1 ring-[#333]' : ''}
                           `}
                         >
                           <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>

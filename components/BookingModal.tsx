@@ -334,6 +334,15 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
           const bookingStart = parseISO(booking.checkIn)
           const bookingEnd = parseISO(booking.checkOut)
 
+          // Allow same-day turnover: check-in on someone's checkout date is OK
+          // Compare only dates, not time components
+          const checkInDateOnly = format(checkInDate, 'yyyy-MM-dd')
+          const bookingEndDateOnly = format(bookingEnd, 'yyyy-MM-dd')
+
+          if (checkInDateOnly === bookingEndDateOnly) {
+            return false // No conflict - same day turnover allowed
+          }
+
           // Overlap logic: (Start1 < End2) AND (End1 > Start2)
           return checkInDate < bookingEnd && checkOutDate > bookingStart
         })
