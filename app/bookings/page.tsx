@@ -496,7 +496,7 @@ function BookingsContent() {
 
             {/* Date Filter Mode Buttons */}
             <div className="py-3 border-b border-gray-200 px-4">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 max-w-lg">
                 <button
                   onClick={handleShowAll}
                   className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${

@@ -37,7 +37,6 @@ interface Booking {
     name: string
   }
 }
-
 function ReportsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -46,9 +45,11 @@ function ReportsContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState<string>('all')
-  const [filterMode, setFilterMode] = useState<'all' | 'next10days' | 'custom'>('all')
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [endDate, setEndDate] = useState(format(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'))
+  const [activeTab, setActiveTab] = useState<'future' | 'historical'>('future')
+  const [filterMode, setFilterMode] = useState<string>('all')
+  const [customDateEnabled, setCustomDateEnabled] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -81,6 +82,75 @@ function ReportsContent() {
     }
   }
 
+  // Apply predefined filters based on filterMode
+  const getDateRangeForFilter = (mode: string) => {
+    const today = new Date()
+    const currentYear = today.getFullYear()
+
+    switch (mode) {
+      case 'next7days':
+        return {
+          start: format(today, 'yyyy-MM-dd'),
+          end: format(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
+        }
+      case 'next30days':
+        return {
+          start: format(today, 'yyyy-MM-dd'),
+          end: format(new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
+        }
+      case 'next3months':
+        const threeMonths = new Date(today)
+        threeMonths.setMonth(threeMonths.getMonth() + 3)
+        return {
+          start: format(today, 'yyyy-MM-dd'),
+          end: format(threeMonths, 'yyyy-MM-dd')
+        }
+      case 'currentYear':
+        return {
+          start: `${currentYear}-01-01`,
+          end: `${currentYear}-12-31`
+        }
+      case 'previousYear':
+        return {
+          start: `${currentYear - 1}-01-01`,
+          end: `${currentYear - 1}-12-31`
+        }
+      case 'currentSeason':
+        return {
+          start: `${currentYear}-06-01`,
+          end: `${currentYear}-12-31`
+        }
+      case 'previousSeason':
+        return {
+          start: `${currentYear - 1}-06-01`,
+          end: `${currentYear - 1}-12-31`
+        }
+      case 'last30days':
+        return {
+          start: format(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+          end: format(today, 'yyyy-MM-dd')
+        }
+      case 'last3months':
+        const threeMonthsAgo = new Date(today)
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+        return {
+          start: format(threeMonthsAgo, 'yyyy-MM-dd'),
+          end: format(today, 'yyyy-MM-dd')
+        }
+      case 'last6months':
+        const sixMonthsAgo = new Date(today)
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        return {
+          start: format(sixMonthsAgo, 'yyyy-MM-dd'),
+          end: format(today, 'yyyy-MM-dd')
+        }
+      case 'custom':
+        return { start: startDate, end: endDate }
+      default:
+        return null
+    }
+  }
+
   const filteredBookings = bookings.filter((booking) => {
     // Only show active bookings
     if (booking.status !== 'active') return false
@@ -90,13 +160,36 @@ function ReportsContent() {
       return false
     }
 
-    // Filter by date range (check-in date only) - Skip if filterMode is 'all'
-    if (filterMode !== 'all') {
-      const checkIn = parseISO(booking.checkIn)
-      const start = parseISO(startDate)
-      const end = parseISO(endDate)
+    const checkIn = parseISO(booking.checkIn)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
-      return isWithinInterval(checkIn, { start, end })
+    // Custom date range overrides everything
+    if (customDateEnabled) {
+      // If both dates are selected, filter by range
+      if (startDate && endDate) {
+        const start = parseISO(startDate)
+        const end = parseISO(endDate)
+        return isWithinInterval(checkIn, { start, end })
+      }
+      // If custom is enabled but dates not selected yet, show all
+      return true
+    }
+
+    // Apply tab filter (only when custom is disabled)
+    if (activeTab === 'future') {
+      // Future tab: only show bookings from today onwards
+      if (checkIn < today) return false
+    }
+
+    // Apply preset date range filters
+    if (filterMode !== 'all') {
+      const dateRange = getDateRangeForFilter(filterMode)
+      if (dateRange) {
+        const start = parseISO(dateRange.start)
+        const end = parseISO(dateRange.end)
+        return isWithinInterval(checkIn, { start, end })
+      }
     }
 
     return true
@@ -123,14 +216,25 @@ function ReportsContent() {
     }
   }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
 
-  const handleShowAll = () => {
+  const handleTabChange = (tab: 'future' | 'historical') => {
+    setActiveTab(tab)
     setFilterMode('all')
+    // Don't disable custom date mode on tab change - let user keep their selection
   }
 
-  const handleNext10Days = () => {
-    setFilterMode('next10days')
-    setStartDate(format(new Date(), 'yyyy-MM-dd'))
-    setEndDate(format(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'))
+  const handleFilterChange = (mode: string) => {
+    setFilterMode(mode)
+    // Disable custom date mode when preset filter is selected
+    if (customDateEnabled) {
+      setCustomDateEnabled(false)
+    }
+    if (mode !== 'all') {
+      const dateRange = getDateRangeForFilter(mode)
+      if (dateRange) {
+        setStartDate(dateRange.start)
+        setEndDate(dateRange.end)
+      }
+    }
   }
 
   const exportCSV = () => {
@@ -404,12 +508,80 @@ function ReportsContent() {
               </div>
             </div>
 
-            {/* Filter Mode Buttons - Single Row */}
+            {/* Custom Date Range Toggle Section */}
             <div className="py-3 border-b border-gray-200 px-4">
-              <div className="grid grid-cols-3 gap-2">
+              {/* Toggle Switch for Custom Date Range */}
+              <label className="flex items-center justify-between cursor-pointer p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors w-full md:max-w-xs">
+                <span className="text-sm font-semibold text-gray-700">Προσαρμοσμένο Εύρος</span>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={customDateEnabled}
+                    onChange={(e) => setCustomDateEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-300 transition-colors"></div>
+                  <div className="absolute top-0.5 left-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+              </label>
+
+              {/* Custom Date Range Inputs */}
+              {customDateEnabled && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="grid grid-cols-2 gap-3 mb-2">
+                    <label className="block text-xs font-semibold text-gray-700">Από</label>
+                    <label className="block text-xs font-semibold text-gray-700">Έως</label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <DatePicker
+                      value={startDate}
+                      onChange={setStartDate}
+                      placeholder="Επιλέξτε ημερομηνία"
+                      highlightDate={endDate || undefined}
+                    />
+                    <DatePicker
+                      value={endDate}
+                      onChange={setEndDate}
+                      placeholder="Επιλέξτε ημερομηνία"
+                      highlightDate={startDate || undefined}
+                      initialMonth={startDate || undefined}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Main Tabs: Μελλοντικά / Ιστορικό - Hide when custom date is active */}
+            {!customDateEnabled && (
+              <div className="py-3 border-b border-gray-200 px-4">
+                <div className="grid grid-cols-2 gap-2 mb-3 max-w-md">
+                  <button
+                    onClick={() => handleTabChange('future')}
+                    className={`px-4 py-3 rounded-lg font-bold text-sm transition-colors ${
+                      activeTab === 'future'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Μελλοντικά
+                  </button>
+                  <button
+                    onClick={() => handleTabChange('historical')}
+                    className={`px-4 py-3 rounded-lg font-bold text-sm transition-colors ${
+                      activeTab === 'historical'
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Ιστορικό
+                  </button>
+                </div>
+
+                {/* Predefined Filters */}
+                <div className="grid grid-cols-3 gap-2 max-w-lg">
                 <button
-                  onClick={handleShowAll}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
+                  onClick={() => handleFilterChange('all')}
+                  className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap ${
                     filterMode === 'all'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -417,53 +589,55 @@ function ReportsContent() {
                 >
                   Όλα
                 </button>
-                <button
-                  onClick={handleNext10Days}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
-                    filterMode === 'next10days'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Επόμενες 10
-                </button>
-                <button
-                  onClick={() => setFilterMode('custom')}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap ${
-                    filterMode === 'custom'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Περίοδος
-                </button>
-              </div>
-            </div>
 
-            {/* Date Range Inputs - Show only when custom mode */}
-            {filterMode === 'custom' && (
-              <div className="py-3 border-b border-gray-200 px-4">
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <label className="block text-xs font-semibold text-gray-700">Από</label>
-                  <label className="block text-xs font-semibold text-gray-700">Έως</label>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <DatePicker
-                    value={startDate}
-                    onChange={setStartDate}
-                    placeholder="Ημερομηνία"
-                    maxDate={endDate || undefined}
-                    highlightDate={endDate || undefined}
-                  />
-                  <DatePicker
-                    value={endDate}
-                    onChange={setEndDate}
-                    placeholder="Ημερομηνία"
-                    minDate={startDate || undefined}
-                    highlightDate={startDate || undefined}
-                    initialMonth={startDate || undefined}
-                  />
-                </div>
+                {activeTab === 'future' ? (
+                  <>
+                    <button
+                      onClick={() => handleFilterChange('next30days')}
+                      className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap ${
+                        filterMode === 'next30days'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Επόμ. 30 ημέρες
+                    </button>
+                    <button
+                      onClick={() => handleFilterChange('next3months')}
+                      className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap ${
+                        filterMode === 'next3months'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Επόμ. 3 μήνες
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleFilterChange('currentYear')}
+                      className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap ${
+                        filterMode === 'currentYear'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Τρέχον Έτος
+                    </button>
+                    <button
+                      onClick={() => handleFilterChange('previousYear')}
+                      className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors whitespace-nowrap ${
+                        filterMode === 'previousYear'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Προηγ. Έτος
+                    </button>
+                  </>
+                )}
+              </div>
               </div>
             )}
 
@@ -473,7 +647,13 @@ function ReportsContent() {
             <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-900 text-center mb-1">Αναφορά Κρατήσεων</h2>
               <p className="text-sm text-gray-600 text-center">
-                {filterMode === 'all' ? (
+                {customDateEnabled ? (
+                  startDate && endDate ? (
+                    `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
+                  ) : (
+                    'Επιλέξτε εύρος ημερομηνιών'
+                  )
+                ) : filterMode === 'all' ? (
                   'Όλες οι κρατήσεις'
                 ) : (
                   `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
