@@ -45,7 +45,7 @@ export default function Alert({
   const style = styles[type]
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in overflow-hidden">
         {/* Header with gradient */}
         <div className={`bg-gradient-to-r ${style.gradient} px-6 py-4`}>

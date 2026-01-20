@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import Modal from '@/components/Modal'
 import BookingModal from '@/components/BookingModal'
+import BlockManagementModal from '@/components/BlockManagementModal'
 import ScrollableCalendar from '@/components/ScrollableCalendar'
 import DatePicker from '@/components/DatePicker'
 
@@ -36,12 +37,21 @@ interface Booking {
   property: Property
 }
 
+interface BlockedDate {
+  id: string
+  propertyId: string
+  startDate: string
+  endDate: string
+  property: Property
+}
+
 function CalendarContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const businessId = searchParams.get('business')
 
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [selectedProperty, setSelectedProperty] = useState<string>('all')
   const [loading, setLoading] = useState(true)
@@ -49,15 +59,11 @@ function CalendarContent() {
   const [modal, setModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
+  const [showBlockManagementModal, setShowBlockManagementModal] = useState(false)
 
-  // Initialize date range for Evaggelia with April-October
-  const currentYear = new Date().getFullYear()
-  const [dateRangeStart, setDateRangeStart] = useState<string>(
-    businessId === 'evaggelia-id' ? `${currentYear}-04` : ''
-  )
-  const [dateRangeEnd, setDateRangeEnd] = useState<string>(
-    businessId === 'evaggelia-id' ? `${currentYear}-10` : ''
-  )
+  // Date range filter (optional - for narrowing the 12-month view)
+  const [dateRangeStart, setDateRangeStart] = useState<string>('')
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>('')
 
   useEffect(() => {
     if (businessId) {
@@ -68,16 +74,44 @@ function CalendarContent() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [bookingsRes, propertiesRes] = await Promise.all([
+      const [bookingsRes, propertiesRes, blockedDatesRes] = await Promise.all([
         fetch(`/api/bookings?businessId=${businessId}`),
         fetch(`/api/properties?businessId=${businessId}`),
+        fetch(`/api/blocked-dates?businessId=${businessId}`),
       ])
 
       const bookingsData = await bookingsRes.json()
       const propertiesData = await propertiesRes.json()
 
-      setBookings(bookingsData)
+      // Handle blocked dates API response - ensure it's an array
+      let blockedDatesData = []
+      if (blockedDatesRes.ok) {
+        const data = await blockedDatesRes.json()
+        blockedDatesData = Array.isArray(data) ? data : []
+      }
+
+      // Filter to show only next 12 months (rolling window)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const twelveMonthsLater = new Date(today)
+      twelveMonthsLater.setMonth(twelveMonthsLater.getMonth() + 12)
+
+      // Filter bookings: checkIn >= today AND checkIn < today + 12 months
+      const filteredBookings = bookingsData.filter((booking: Booking) => {
+        const checkIn = new Date(booking.checkIn)
+        return checkIn >= today && checkIn < twelveMonthsLater
+      })
+
+      // Filter blocked dates: overlaps with next 12 months (startDate < today + 12 months AND endDate > today)
+      const filteredBlockedDates = blockedDatesData.filter((blocked: BlockedDate) => {
+        const startDate = new Date(blocked.startDate)
+        const endDate = new Date(blocked.endDate)
+        return startDate < twelveMonthsLater && endDate > today
+      })
+
+      setBookings(filteredBookings)
       setProperties(propertiesData)
+      setBlockedDates(filteredBlockedDates)
     } catch (error) {
       console.error('Error fetching data:', error)
       setToast({ message: 'Σφάλμα κατά τη φόρτωση δεδομένων', type: 'error' })
@@ -241,6 +275,11 @@ function CalendarContent() {
     }
   }
 
+  const handleBlockedDateClick = (blockedDate: BlockedDate) => {
+    console.log('Clicked blocked date:', blockedDate)
+    setShowBlockManagementModal(true)
+  }
+
   const setSeasonRange = () => {
     const currentYear = new Date().getFullYear()
     setDateRangeStart(`${currentYear}-04`)
@@ -354,6 +393,15 @@ function CalendarContent() {
           currentBookingId={editingBooking.id}
         />
       )}
+      {showBlockManagementModal && (
+        <BlockManagementModal
+          properties={properties}
+          bookings={bookings}
+          businessId={businessId || ''}
+          onClose={() => setShowBlockManagementModal(false)}
+          onUpdate={fetchData}
+        />
+      )}
       <div className="min-h-screen bg-gray-50">
         <div className="mx-auto">
           <div className="bg-white md:m-4 md:rounded-xl md:shadow-lg pb-4">
@@ -372,12 +420,23 @@ function CalendarContent() {
                 <h1 className="text-lg md:text-xl font-bold text-gray-900 absolute left-1/2 transform -translate-x-1/2">
                   Ημερολόγιο
                 </h1>
-                <button
-                  onClick={() => setShowBookingModal(true)}
-                  className="px-2.5 py-2 md:px-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-                >
-                  + Νέα
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowBookingModal(true)}
+                    className="px-2.5 py-2 md:px-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                  >
+                    + Νέα
+                  </button>
+                  <button
+                    onClick={() => setShowBlockManagementModal(true)}
+                    className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    title="Μπλοκάρισμα Ημερομηνιών"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -473,9 +532,11 @@ function CalendarContent() {
             ) : (
               <ScrollableCalendar
                 bookings={bookings}
+                blockedDates={blockedDates}
                 properties={properties}
                 selectedProperty={selectedProperty}
                 onBookingClick={handleEventClick}
+                onBlockedDateClick={handleBlockedDateClick}
                 getColorForProperty={getColorForProperty}
                 dateRangeStart={dateRangeStart}
                 dateRangeEnd={dateRangeEnd}

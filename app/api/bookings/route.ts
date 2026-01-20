@@ -105,6 +105,40 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check for blocked dates
+    const blockedDatesOverlap = await prisma.blockedDate.findFirst({
+      where: {
+        propertyId,
+        OR: [
+          {
+            AND: [
+              { startDate: { lte: new Date(checkIn) } },
+              { endDate: { gt: new Date(checkIn) } },
+            ],
+          },
+          {
+            AND: [
+              { startDate: { lt: new Date(checkOut) } },
+              { endDate: { gte: new Date(checkOut) } },
+            ],
+          },
+          {
+            AND: [
+              { startDate: { gte: new Date(checkIn) } },
+              { endDate: { lte: new Date(checkOut) } },
+            ],
+          },
+        ],
+      },
+    })
+
+    if (blockedDatesOverlap) {
+      return NextResponse.json(
+        { error: 'Αυτές οι ημερομηνίες είναι μπλοκαρισμένες' },
+        { status: 409 }
+      )
+    }
+
     // Price validation: Only validate if totalPrice is not provided (custom price case)
     let calculatedTotal = 0
 

@@ -26,11 +26,21 @@ interface Booking {
   property: Property
 }
 
+interface BlockedDate {
+  id: string
+  propertyId: string
+  startDate: string
+  endDate: string
+  property: Property
+}
+
 interface ScrollableCalendarProps {
   bookings: Booking[]
+  blockedDates: BlockedDate[]
   properties: Property[]
   selectedProperty: string
   onBookingClick: (booking: Booking) => void
+  onBlockedDateClick: (blockedDate: BlockedDate) => void
   getColorForProperty: (propertyId: string) => string
   dateRangeStart?: string
   dateRangeEnd?: string
@@ -38,9 +48,11 @@ interface ScrollableCalendarProps {
 
 export default function ScrollableCalendar({
   bookings,
+  blockedDates,
   properties,
   selectedProperty,
   onBookingClick,
+  onBlockedDateClick,
   getColorForProperty,
   dateRangeStart,
   dateRangeEnd,
@@ -144,6 +156,39 @@ export default function ScrollableCalendar({
     return hasCheckOut && !hasCheckIn
   }
 
+  const isDateBlocked = (date: Date, propertyId: string) => {
+    if (!Array.isArray(blockedDates)) return false
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return blockedDates.some((block) => {
+      if (block.property.id !== propertyId) return false
+      const startDate = new Date(block.startDate)
+      const endDate = new Date(block.endDate)
+      const currentDate = new Date(dateStr)
+      return currentDate >= startDate && currentDate <= endDate
+    })
+  }
+
+  const getBlockedDateForDate = (date: Date, propertyId: string) => {
+    if (!Array.isArray(blockedDates)) return undefined
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return blockedDates.find((block) => {
+      if (block.property.id !== propertyId) return false
+      const startDate = new Date(block.startDate)
+      const endDate = new Date(block.endDate)
+      const currentDate = new Date(dateStr)
+      return currentDate >= startDate && currentDate <= endDate
+    })
+  }
+
+  const isFirstDayOfBlock = (date: Date, propertyId: string) => {
+    if (!Array.isArray(blockedDates)) return false
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return blockedDates.some((block) => {
+      if (block.property.id !== propertyId) return false
+      return format(new Date(block.startDate), 'yyyy-MM-dd') === dateStr
+    })
+  }
+
   const weekDays = ['Δ', 'Τ', 'Τ', 'Π', 'Π', 'Σ', 'Κ']
 
   // If only 1 property selected, show months in grid
@@ -188,6 +233,9 @@ export default function ScrollableCalendar({
                   {/* Actual days */}
                   {days.map((day, dayIndex) => {
                     const isToday = isSameDay(day, today)
+                    const isBlocked = isDateBlocked(day, property.id)
+                    const blockedDate = getBlockedDateForDate(day, property.id)
+                    const isFirstBlock = isFirstDayOfBlock(day, property.id)
                     const isBooked = isDateBooked(day, property.id)
                     const booking = getBookingForDate(day, property.id)
                     const isChangeover = isChangeoverDay(day, property.id)
@@ -198,27 +246,35 @@ export default function ScrollableCalendar({
                     return (
                       <div
                         key={dayIndex}
-                        onClick={() => booking && onBookingClick(booking)}
+                        onClick={() => {
+                          if (isBlocked && blockedDate) {
+                            onBlockedDateClick(blockedDate)
+                          } else if (booking) {
+                            onBookingClick(booking)
+                          }
+                        }}
                         style={{
-                          backgroundColor: isBooked
-                            ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
-                            : '#f9f9f9'
+                          backgroundColor: isBlocked
+                            ? '#dc2626'
+                            : isBooked
+                              ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
+                              : '#f9f9f9'
                         }}
                         className={`
                           relative aspect-square flex flex-col items-center justify-center
                           rounded text-[11px] md:text-sm font-medium
                           transition-all duration-200
-                          ${isBooked
+                          ${isBlocked || isBooked
                             ? 'text-white cursor-pointer shadow-sm'
                             : 'hover:bg-gray-100'
                           }
-                          ${isToday && !isBooked ? 'ring-2 ring-blue-500' : ''}
-                          ${isChangeover ? 'ring-2 ring-orange-400' : ''}
-                          ${isCheckoutOnly ? 'ring-2 ring-red-400' : ''}
-                          ${isFirstDay && booking && !isChangeover && !isCheckoutOnly ? 'ring-1 ring-[#333]' : ''}
+                          ${isToday && !isBooked && !isBlocked ? 'ring-2 ring-blue-500' : ''}
+                          ${isChangeover && !isBlocked ? 'ring-2 ring-orange-400' : ''}
+                          ${isCheckoutOnly && !isBlocked ? 'ring-2 ring-red-400' : ''}
+                          ${isFirstDay && booking && !isChangeover && !isCheckoutOnly && !isBlocked ? 'ring-1 ring-[#333]' : ''}
                         `}
                       >
-                        <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>
+                        <div className={`font-semibold ${isBlocked || isBooked ? '' : 'text-[#333]'}`}>
                           {format(day, 'd')}
                         </div>
                         {isChangeover && checkInBooking ? (
@@ -296,6 +352,9 @@ export default function ScrollableCalendar({
                     {/* Actual days */}
                     {days.map((day, dayIndex) => {
                       const isToday = isSameDay(day, today)
+                      const isBlocked = isDateBlocked(day, property.id)
+                      const blockedDate = getBlockedDateForDate(day, property.id)
+                      const isFirstBlock = isFirstDayOfBlock(day, property.id)
                       const isBooked = isDateBooked(day, property.id)
                       const booking = getBookingForDate(day, property.id)
                       const isChangeover = isChangeoverDay(day, property.id)
@@ -306,27 +365,35 @@ export default function ScrollableCalendar({
                       return (
                         <div
                           key={dayIndex}
-                          onClick={() => booking && onBookingClick(booking)}
+                          onClick={() => {
+                            if (isBlocked && blockedDate) {
+                              onBlockedDateClick(blockedDate)
+                            } else if (booking) {
+                              onBookingClick(booking)
+                            }
+                          }}
                           style={{
-                            backgroundColor: isBooked
-                              ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
-                              : '#f9f9f9'
+                            backgroundColor: isBlocked
+                              ? '#dc2626'
+                              : isBooked
+                                ? (isCheckoutOnly ? '#8FD4C1' : (isFirstDay ? '#2d8a6e' : '#40af90'))
+                                : '#f9f9f9'
                           }}
                           className={`
                             relative aspect-square flex flex-col items-center justify-center
                             rounded text-[11px] md:text-sm font-medium
                             transition-all duration-200
-                            ${isBooked
+                            ${isBlocked || isBooked
                               ? 'text-white cursor-pointer shadow-sm'
                               : 'hover:bg-gray-100'
                             }
-                            ${isToday && !isBooked ? 'ring-2 ring-blue-500' : ''}
-                            ${isChangeover ? 'ring-2 ring-orange-400' : ''}
-                            ${isCheckoutOnly ? 'ring-2 ring-red-400' : ''}
-                            ${isFirstDay && booking && !isChangeover && !isCheckoutOnly ? 'ring-1 ring-[#333]' : ''}
+                            ${isToday && !isBooked && !isBlocked ? 'ring-2 ring-blue-500' : ''}
+                            ${isChangeover && !isBlocked ? 'ring-2 ring-orange-400' : ''}
+                            ${isCheckoutOnly && !isBlocked ? 'ring-2 ring-red-400' : ''}
+                            ${isFirstDay && booking && !isChangeover && !isCheckoutOnly && !isBlocked ? 'ring-1 ring-[#333]' : ''}
                           `}
                         >
-                          <div className={`font-semibold ${isBooked ? '' : 'text-[#333]'}`}>
+                          <div className={`font-semibold ${isBlocked || isBooked ? '' : 'text-[#333]'}`}>
                             {format(day, 'd')}
                           </div>
                           {isChangeover && checkInBooking ? (

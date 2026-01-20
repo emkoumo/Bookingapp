@@ -19,16 +19,17 @@ model Business {
 }
 
 model Property {
-  id          String        @id @default(uuid())
-  businessId  String
-  name        String
-  description String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  icalUrl     String?
-  bookings    Booking[]
-  priceRanges PriceRange[]
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  businessId   String
+  name         String
+  description  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  icalUrl      String?
+  bookings     Booking[]
+  priceRanges  PriceRange[]
+  blockedDates BlockedDate[]
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
 model Booking {
@@ -103,4 +104,20 @@ model PriceRange {
 
   @@index([propertyId])
   @@index([propertyId, dateFrom, dateTo])
+}
+
+model BlockedDate {
+  id         String   @id @default(uuid())
+  propertyId String
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+  reason     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([propertyId, startDate, endDate])
+  @@index([startDate])
+  @@index([endDate])
 }

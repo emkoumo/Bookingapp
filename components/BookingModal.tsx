@@ -456,35 +456,64 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }
   }
 
-  const calculateDisabledDates = () => {
+  const calculateDisabledDates = async () => {
     const disabled: string[] = []
 
-    // For each selected property, find all booked dates
-    formData.propertyIds.forEach((propertyId) => {
-      const propertyBookings = bookings.filter(
-        (b) => b.property.id === propertyId &&
-               b.id !== currentBookingId && // Exclude current booking in edit mode
-               b.status === 'active' // Only consider active bookings
-      )
+    // Fetch blocked dates for the business
+    try {
+      const blockedDatesRes = await fetch(`/api/blocked-dates?businessId=${businessId}`)
+      const blockedDatesData = await blockedDatesRes.json()
 
-      propertyBookings.forEach((booking) => {
-        try {
-          const start = parseISO(booking.checkIn)
-          const end = parseISO(booking.checkOut)
-          // Subtract 1 day from end to exclude checkout day (guest leaves in morning)
-          const endMinusOne = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-          const dates = eachDayOfInterval({ start, end: endMinusOne })
-          dates.forEach((date) => {
-            const dateStr = format(date, 'yyyy-MM-dd')
-            if (!disabled.includes(dateStr)) {
-              disabled.push(dateStr)
-            }
-          })
-        } catch (error) {
-          console.error('Error parsing dates:', error)
-        }
+      // For each selected property, find all booked dates
+      formData.propertyIds.forEach((propertyId) => {
+        const propertyBookings = bookings.filter(
+          (b) => b.property.id === propertyId &&
+                 b.id !== currentBookingId && // Exclude current booking in edit mode
+                 b.status === 'active' // Only consider active bookings
+        )
+
+        propertyBookings.forEach((booking) => {
+          try {
+            const start = parseISO(booking.checkIn)
+            const end = parseISO(booking.checkOut)
+            // Subtract 1 day from end to exclude checkout day (guest leaves in morning)
+            const endMinusOne = new Date(end.getTime() - 24 * 60 * 60 * 1000)
+            const dates = eachDayOfInterval({ start, end: endMinusOne })
+            dates.forEach((date) => {
+              const dateStr = format(date, 'yyyy-MM-dd')
+              if (!disabled.includes(dateStr)) {
+                disabled.push(dateStr)
+              }
+            })
+          } catch (error) {
+            console.error('Error parsing dates:', error)
+          }
+        })
+
+        // Add blocked dates for this property
+        const propertyBlockedDates = blockedDatesData.filter(
+          (b: any) => b.property.id === propertyId
+        )
+
+        propertyBlockedDates.forEach((block: any) => {
+          try {
+            const start = parseISO(block.startDate)
+            const end = parseISO(block.endDate)
+            const dates = eachDayOfInterval({ start, end })
+            dates.forEach((date) => {
+              const dateStr = format(date, 'yyyy-MM-dd')
+              if (!disabled.includes(dateStr)) {
+                disabled.push(dateStr)
+              }
+            })
+          } catch (error) {
+            console.error('Error parsing blocked dates:', error)
+          }
+        })
       })
-    })
+    } catch (error) {
+      console.error('Error fetching blocked dates:', error)
+    }
 
     setDisabledDates(disabled)
   }
