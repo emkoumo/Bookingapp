@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isSameDay, getDay } from 'date-fns'
 import { el } from 'date-fns/locale'
 
@@ -74,9 +75,24 @@ export default function ScrollableCalendar({
       currentMonth = addMonths(currentMonth, 1)
     }
   } else {
-    // Default: Generate 12 months starting from current month
-    months = Array.from({ length: 12 }, (_, i) => addMonths(today, i))
+    // Default window: 6 months back → +12 months forward (19 months total).
+    // User lands scrolled to current month and can scroll up for past bookings.
+    months = Array.from({ length: 19 }, (_, i) => addMonths(today, i - 6))
   }
+
+  // Auto-scroll the current month into view on mount so it's the first thing
+  // visible — but past months remain above for scroll-up access.
+  const currentMonthRef = useRef<HTMLDivElement>(null)
+  const hasScrolledRef = useRef(false)
+  useEffect(() => {
+    if (hasScrolledRef.current) return
+    if (currentMonthRef.current) {
+      currentMonthRef.current.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' })
+      hasScrolledRef.current = true
+    }
+  }, [])
+
+  const currentMonthKey = format(today, 'yyyy-MM')
 
   const activeBookings = bookings.filter((b) => b.status === 'active')
 
@@ -201,9 +217,15 @@ export default function ScrollableCalendar({
             const days = getDaysInMonth(monthDate)
             const firstDayOfWeek = getDay(days[0])
             const startPadding = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
+            const isCurrent = format(monthDate, 'yyyy-MM') === currentMonthKey
 
             return (
-              <div key={monthIndex} className="border border-gray-200 rounded-lg p-1.5 md:p-3 space-y-1 md:space-y-2" style={{ backgroundColor: '#f9f9f9' }}>
+              <div
+                key={monthIndex}
+                ref={isCurrent ? currentMonthRef : null}
+                className="border border-gray-200 rounded-lg p-1.5 md:p-3 space-y-1 md:space-y-2"
+                style={{ backgroundColor: '#f9f9f9' }}
+              >
                 {/* Month Title */}
                 <div className="text-center border-b border-gray-200 pb-1 md:pb-2">
                   <h3 className="font-medium text-xs md:text-base text-gray-900">
@@ -305,9 +327,14 @@ export default function ScrollableCalendar({
         const days = getDaysInMonth(monthDate)
         const firstDayOfWeek = getDay(days[0])
         const startPadding = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
+        const isCurrent = format(monthDate, 'yyyy-MM') === currentMonthKey
 
         return (
-          <div key={monthIndex} className="space-y-3 md:space-y-4">
+          <div
+            key={monthIndex}
+            ref={isCurrent ? currentMonthRef : null}
+            className="space-y-3 md:space-y-4"
+          >
             {/* Month Title */}
             <div className="text-center">
               <h2 className="text-lg md:text-2xl font-bold text-gray-900">

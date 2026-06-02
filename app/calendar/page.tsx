@@ -90,23 +90,26 @@ function CalendarContent() {
         blockedDatesData = Array.isArray(data) ? data : []
       }
 
-      // Filter to show only next 12 months (rolling window)
+      // Visible window: 6 months back → 12 months forward. Current month is
+      // the initial scroll position; user can scroll up for past, down for future.
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const twelveMonthsLater = new Date(today)
-      twelveMonthsLater.setMonth(twelveMonthsLater.getMonth() + 12)
+      const windowStart = new Date(today.getFullYear(), today.getMonth() - 6, 1)
+      const windowEnd = new Date(today)
+      windowEnd.setMonth(windowEnd.getMonth() + 12)
 
-      // Filter bookings: checkIn >= today AND checkIn < today + 12 months
+      // Include any booking that overlaps the window (checkOut > start AND checkIn < end).
       const filteredBookings = bookingsData.filter((booking: Booking) => {
         const checkIn = new Date(booking.checkIn)
-        return checkIn >= today && checkIn < twelveMonthsLater
+        const checkOut = new Date(booking.checkOut)
+        return checkOut > windowStart && checkIn < windowEnd
       })
 
-      // Filter blocked dates: overlaps with next 12 months (startDate < today + 12 months AND endDate > today)
+      // Same overlap rule for blocked dates.
       const filteredBlockedDates = blockedDatesData.filter((blocked: BlockedDate) => {
         const startDate = new Date(blocked.startDate)
         const endDate = new Date(blocked.endDate)
-        return startDate < twelveMonthsLater && endDate > today
+        return endDate > windowStart && startDate < windowEnd
       })
 
       setBookings(filteredBookings)
