@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geologica } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 import "./globals.css";
 
 const geologica = Geologica({
@@ -9,7 +10,7 @@ const geologica = Geologica({
 
 export const metadata: Metadata = {
   title: "Booking Management",
-  description: "Internal booking management system for Evaggelia & Elegancia",
+  description: "Internal booking management system",
   manifest: "/manifest.json",
 };
 
@@ -28,7 +29,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Booking App" />
       </head>
       <body className={`${geologica.className} antialiased`}>
-        {children}
+        <ClerkProvider>
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

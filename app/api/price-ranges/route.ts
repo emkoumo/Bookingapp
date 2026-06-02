@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 // GET - Fetch all price ranges for a property
 export async function GET(request: NextRequest) {
@@ -14,6 +15,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { businessId: true },
+    })
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(property.businessId)
+
     const priceRanges = await prisma.priceRange.findMany({
       where: { propertyId },
       orderBy: { dateFrom: 'asc' }
@@ -21,6 +33,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(priceRanges)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching price ranges:', error)
     return NextResponse.json(
       { error: 'Failed to fetch price ranges' },
@@ -42,6 +56,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { businessId: true },
+    })
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(property.businessId)
 
     // Parse dates and normalize to UTC midnight to avoid timezone issues
     const dateFromParsed = new Date(dateFrom + 'T00:00:00.000Z')
@@ -94,6 +119,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(priceRange, { status: 201 })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error creating price range:', error)
     return NextResponse.json(
       { error: 'Failed to create price range' },
@@ -116,6 +143,21 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Get existing price range to find propertyId
+    const existing = await prisma.priceRange.findUnique({
+      where: { id },
+      include: { property: { select: { businessId: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Price range not found' },
+        { status: 404 }
+      )
+    }
+
+    await requireBusinessAccess(existing.property.businessId)
+
     // Parse dates and normalize to UTC midnight to avoid timezone issues
     const dateFromParsed = new Date(dateFrom + 'T00:00:00.000Z')
     const dateToParsed = new Date(dateTo + 'T23:59:59.999Z')
@@ -133,18 +175,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { error: 'Η τιμή πρέπει να είναι μεγαλύτερη από 0' },
         { status: 400 }
-      )
-    }
-
-    // Get existing price range to find propertyId
-    const existing = await prisma.priceRange.findUnique({
-      where: { id }
-    })
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: 'Price range not found' },
-        { status: 404 }
       )
     }
 
@@ -179,6 +209,8 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(priceRange)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error updating price range:', error)
     return NextResponse.json(
       { error: 'Failed to update price range' },
@@ -200,12 +232,28 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    const existing = await prisma.priceRange.findUnique({
+      where: { id },
+      include: { property: { select: { businessId: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Price range not found' },
+        { status: 404 }
+      )
+    }
+
+    await requireBusinessAccess(existing.property.businessId)
+
     await prisma.priceRange.delete({
       where: { id }
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error deleting price range:', error)
     return NextResponse.json(
       { error: 'Failed to delete price range' },

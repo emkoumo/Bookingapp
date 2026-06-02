@@ -12,13 +12,33 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // Get selected business from localStorage
-    const savedBusiness = localStorage.getItem('selectedBusiness')
-    if (savedBusiness) {
-      setSelectedBusiness(savedBusiness)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/businesses')
+        if (!res.ok) {
+          setLoading(false)
+          return
+        }
+        const data: Array<{ id: string }> = await res.json()
+        if (cancelled) return
+        if (data.length === 0) {
+          router.replace('/hotels/new')
+          return
+        }
+        const saved = localStorage.getItem('selectedBusiness')
+        const valid = saved && data.find(b => b.id === saved)
+        const next = valid ? saved! : data[0].id
+        localStorage.setItem('selectedBusiness', next)
+        setSelectedBusiness(next)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-    setLoading(false)
-  }, [])
+  }, [router])
 
   const navigateTo = (path: string) => {
     const business = localStorage.getItem('selectedBusiness')

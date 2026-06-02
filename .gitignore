@@ -38,6 +38,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local DB backups (never commit)
+/backups
+
+# Claude scheduler lock
+.claude/scheduled_tasks.lock
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

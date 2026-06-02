@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
       )
     }
 
+    await requireBusinessAccess(businessId)
+
     const templates = await prisma.emailTemplate.findMany({
       where: { businessId },
       orderBy: { name: 'asc' },
@@ -20,6 +23,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(templates)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching email templates:', error)
     return NextResponse.json(
       { error: 'Failed to fetch email templates' },
@@ -41,6 +46,21 @@ export async function PATCH(request: Request) {
       )
     }
 
+    // Look up the template to derive its businessId for ownership check
+    const existing = await prisma.emailTemplate.findUnique({
+      where: { id },
+      select: { businessId: true },
+    })
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 }
+      )
+    }
+
+    await requireBusinessAccess(existing.businessId)
+
     console.log('Updating template with:', {
       id,
       subject,
@@ -61,6 +81,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(template)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error updating email template:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(

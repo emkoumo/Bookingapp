@@ -7,15 +7,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String           @id @default(uuid())
+  clerkId   String           @unique
+  email     String
+  name      String?
+  imageUrl  String?
+  role      String           @default("user")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  memberships BusinessMember[]
+
+  @@index([email])
+}
+
+model BusinessMember {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String
+  role       String   @default("owner")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
+}
+
 model Business {
-  id             String          @id @default(uuid())
+  id             String           @id @default(uuid())
   name           String
   email          String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   emailTemplates EmailTemplate[]
   paymentMethods PaymentMethod[]
   properties     Property[]
+  members        BusinessMember[]
 }
 
 model Property {

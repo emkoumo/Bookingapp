@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
         { status: 400 }
       )
     }
+
+    await requireBusinessAccess(businessId)
 
     const blockedDates = await prisma.blockedDate.findMany({
       where: {
@@ -31,6 +34,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(blockedDates)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching blocked dates:', error)
     return NextResponse.json(
       { error: 'Failed to fetch blocked dates' },
@@ -56,6 +61,24 @@ export async function POST(request: Request) {
         { error: 'Start date and end date are required' },
         { status: 400 }
       )
+    }
+
+    // Verify the user has access to every business that owns the supplied properties
+    const properties = await prisma.property.findMany({
+      where: { id: { in: propertyIds } },
+      select: { id: true, businessId: true },
+    })
+
+    if (properties.length !== propertyIds.length) {
+      return NextResponse.json(
+        { error: 'One or more properties not found' },
+        { status: 404 }
+      )
+    }
+
+    const businessIds = Array.from(new Set(properties.map((p) => p.businessId)))
+    for (const bId of businessIds) {
+      await requireBusinessAccess(bId)
     }
 
     // Validate date range
@@ -143,6 +166,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(blockedDates, { status: 201 })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error creating blocked dates:', error)
     return NextResponse.json(
       { error: 'Failed to create blocked dates' },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { UserButton } from '@clerk/nextjs'
 import FinancialManagementModal from './FinancialManagementModal'
 
 interface Business {
@@ -15,16 +16,22 @@ export default function Header() {
   const [selectedBusiness, setSelectedBusiness] = useState<string>('')
   const [isOpen, setIsOpen] = useState(false)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
     fetchBusinesses()
+    fetch('/api/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(me => setIsAdmin(me?.role === 'admin'))
+      .catch(() => {})
   }, [])
 
   const fetchBusinesses = async () => {
     try {
       const res = await fetch('/api/businesses')
+      if (!res.ok) return
       const data = await res.json()
       setBusinesses(data)
 
@@ -34,6 +41,9 @@ export default function Header() {
       } else if (data.length > 0) {
         setSelectedBusiness(data[0].id)
         localStorage.setItem('selectedBusiness', data[0].id)
+      } else {
+        setSelectedBusiness('')
+        localStorage.removeItem('selectedBusiness')
       }
     } catch (error) {
       console.error('Error fetching businesses:', error)
@@ -45,7 +55,6 @@ export default function Header() {
     localStorage.setItem('selectedBusiness', businessId)
     setIsOpen(false)
 
-    // Reload current page with new business
     if (pathname !== '/') {
       const url = new URL(window.location.href)
       url.searchParams.set('business', businessId)
@@ -54,13 +63,10 @@ export default function Header() {
   }
 
   const getSelectedBusinessName = () => {
-    const business = businesses.find((b) => b.id === selectedBusiness)
-    if (!business) return 'Επιλέξτε Επιχείρηση'
-
-    // Short names for mobile
-    if (business.name.includes('Evaggelia')) return 'Evaggelia'
-    if (business.name.includes('Elegancia')) return 'Elegancia'
-    return business.name
+    const business = businesses.find(b => b.id === selectedBusiness)
+    if (!business) return 'Επιλέξτε'
+    const firstWord = business.name.split(' ')[0]
+    return firstWord.length > 14 ? firstWord.slice(0, 14) + '…' : firstWord
   }
 
   return (
@@ -87,6 +93,7 @@ export default function Header() {
             onClick={() => setIsPaymentModalOpen(true)}
             className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
             title="Μέθοδοι Πληρωμής"
+            disabled={!selectedBusiness}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -124,7 +131,7 @@ export default function Header() {
                   className="fixed inset-0 z-10"
                   onClick={() => setIsOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20 max-h-[70vh] overflow-y-auto">
                   {businesses.map((business) => (
                     <button
                       key={business.id}
@@ -148,9 +155,37 @@ export default function Header() {
                       )}
                     </button>
                   ))}
+                  <button
+                    onClick={() => {
+                      setIsOpen(false)
+                      router.push('/hotels')
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-t border-gray-100 text-blue-600 font-medium text-sm"
+                  >
+                    + Διαχείριση Καταλυμάτων
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setIsOpen(false)
+                        router.push('/admin')
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors text-purple-600 font-medium text-sm"
+                    >
+                      🔒 Διαχείριση Χρηστών
+                    </button>
+                  )}
                 </div>
               </>
             )}
+          </div>
+
+          {/* User menu */}
+          <div className="ml-1">
+            <UserButton
+              afterSignOutUrl="/sign-in"
+              appearance={{ elements: { avatarBox: 'w-8 h-8' } }}
+            />
           </div>
         </div>
       </div>

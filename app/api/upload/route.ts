@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUser, authErrorResponse } from '@/lib/auth'
 
 /**
  * File upload API route
@@ -24,11 +25,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
+    await getCurrentUser()
+
     return NextResponse.json({
       error: 'File upload not available on serverless. Please use image URL instead.',
       suggestion: 'Upload your image to Imgur.com and paste the URL in the "URL εικόνας" field below.'
     }, { status: 501 })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Upload error:', error)
     return NextResponse.json({
       error: 'Upload failed. Please use image URL instead.'

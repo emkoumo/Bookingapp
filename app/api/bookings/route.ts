@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
         { status: 400 }
       )
     }
+
+    await requireBusinessAccess(businessId)
 
     const bookings = await prisma.booking.findMany({
       where: {
@@ -32,6 +35,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(bookings)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching bookings:', error)
     return NextResponse.json(
       { error: 'Failed to fetch bookings' },
@@ -69,6 +74,18 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // Verify the user has access to the business that owns this property
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { businessId: true },
+    })
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(property.businessId)
 
     // Check for overlapping bookings
     const overlapping = await prisma.booking.findFirst({
@@ -224,6 +241,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(booking, { status: 201 })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error creating booking:', error)
     return NextResponse.json(
       { error: 'Failed to create booking' },

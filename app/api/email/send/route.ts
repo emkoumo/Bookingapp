@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +27,8 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    await requireBusinessAccess(businessId)
 
     // Fetch business and template
     const business = await prisma.business.findUnique({
@@ -131,6 +134,8 @@ Country: ${process.env[`${businessId.toUpperCase().replace(/-/g, '_')}_WU_COUNTR
       message: 'Email sent successfully',
     })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error sending email:', error)
     return NextResponse.json(
       { error: 'Failed to send email', details: (error as Error).message },

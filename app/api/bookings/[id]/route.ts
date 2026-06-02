@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function GET(
   request: Request,
@@ -23,8 +24,12 @@ export async function GET(
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
     }
 
+    await requireBusinessAccess(booking.property.businessId)
+
     return NextResponse.json(booking)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching booking:', error)
     return NextResponse.json(
       { error: 'Failed to fetch booking' },
@@ -39,6 +44,18 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
+
+    const existing = await prisma.booking.findUnique({
+      where: { id },
+      include: { property: { select: { businessId: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(existing.property.businessId)
+
     const body = await request.json()
 
     // Remove propertyId from body as it cannot be updated (it's a relation field)
@@ -63,6 +80,8 @@ export async function PATCH(
 
     return NextResponse.json(booking)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error updating booking:', error)
     return NextResponse.json(
       { error: 'Failed to update booking' },
@@ -78,12 +97,25 @@ export async function DELETE(
   try {
     const { id } = await params
 
+    const existing = await prisma.booking.findUnique({
+      where: { id },
+      include: { property: { select: { businessId: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(existing.property.businessId)
+
     await prisma.booking.delete({
       where: { id },
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error deleting booking:', error)
     return NextResponse.json(
       { error: 'Failed to delete booking' },

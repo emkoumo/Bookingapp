@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 export async function GET(
   request: Request,
@@ -25,8 +26,12 @@ export async function GET(
       )
     }
 
+    await requireBusinessAccess(blockedDate.property.businessId)
+
     return NextResponse.json(blockedDate)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error fetching blocked date:', error)
     return NextResponse.json(
       { error: 'Failed to fetch blocked date' },
@@ -65,6 +70,7 @@ export async function PATCH(
     // Get the blocked date to check its property
     const existingBlockedDate = await prisma.blockedDate.findUnique({
       where: { id },
+      include: { property: { select: { businessId: true } } },
     })
 
     if (!existingBlockedDate) {
@@ -73,6 +79,8 @@ export async function PATCH(
         { status: 404 }
       )
     }
+
+    await requireBusinessAccess(existingBlockedDate.property.businessId)
 
     // Check for overlapping active bookings (excluding the current blocked date)
     const overlapping = await prisma.booking.findFirst({
@@ -131,6 +139,8 @@ export async function PATCH(
 
     return NextResponse.json(updatedBlockedDate)
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error updating blocked date:', error)
     return NextResponse.json(
       { error: 'Failed to update blocked date' },
@@ -145,12 +155,29 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+
+    const existingBlockedDate = await prisma.blockedDate.findUnique({
+      where: { id },
+      include: { property: { select: { businessId: true } } },
+    })
+
+    if (!existingBlockedDate) {
+      return NextResponse.json(
+        { error: 'Blocked date not found' },
+        { status: 404 }
+      )
+    }
+
+    await requireBusinessAccess(existingBlockedDate.property.businessId)
+
     await prisma.blockedDate.delete({
       where: { id },
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error deleting blocked date:', error)
     return NextResponse.json(
       { error: 'Failed to delete blocked date' },

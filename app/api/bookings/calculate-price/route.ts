@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { requireBusinessAccess, authErrorResponse } from '@/lib/auth'
 
 // POST - Calculate price for a booking
 export async function POST(request: NextRequest) {
@@ -15,6 +16,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Verify the user has access to the business that owns this property
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { businessId: true },
+    })
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+
+    await requireBusinessAccess(property.businessId)
 
     const checkInDate = parseISO(checkIn)
     const checkOutDate = parseISO(checkOut)
@@ -82,6 +95,8 @@ export async function POST(request: NextRequest) {
       breakdown
     })
   } catch (error) {
+    const authResp = authErrorResponse(error)
+    if (authResp) return authResp
     console.error('Error calculating price:', error)
     return NextResponse.json(
       { error: 'Failed to calculate price' },

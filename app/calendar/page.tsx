@@ -529,6 +529,22 @@ function CalendarContent() {
               <div className="flex justify-center items-center py-20">
                 <div className="text-lg text-gray-600 font-medium">Φόρτωση...</div>
               </div>
+            ) : properties.length === 0 ? (
+              <div className="px-4 py-12 md:py-16 text-center">
+                <div className="text-5xl mb-3">🛏️</div>
+                <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-1">
+                  Δεν υπάρχουν ακόμα δωμάτια
+                </h3>
+                <p className="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+                  Προσθέστε τα διαμερίσματα, βίλες ή δωμάτια του καταλύματος για να ξεκινήσετε.
+                </p>
+                <button
+                  onClick={() => router.push(`/hotels/${businessId}`)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg shadow-md hover:from-blue-600 hover:to-indigo-700 transition-all"
+                >
+                  Προσθήκη Δωματίων
+                </button>
+              </div>
             ) : (
               <ScrollableCalendar
                 bookings={bookings}
