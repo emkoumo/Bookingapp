@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
@@ -83,6 +83,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   const [priceCalculation, setPriceCalculation] = useState<{
     success: boolean
     totalPrice?: number
+    defaultTotal?: number // What the current price list would compute. May differ from totalPrice if the booking has a manual override.
     nightsCount?: number
     missingDates?: string[]
     breakdown?: Array<{ date: string; price: number }>
@@ -165,70 +166,74 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     }
   }, [formData.checkIn, formData.checkOut, formData.propertyIds])
 
-  // In edit mode, pre-populate custom prices ONLY if saved price differs from calculated price
+  // In edit mode, pre-populate custom prices when the saved booking total differs
+  // from what the CURRENT price list would compute — that gap means a manual
+  // override was saved and should be reflected in the per-night inputs.
+  // (We compare against defaultTotal — the price list value — not totalPrice,
+  // because totalPrice is initialised from initialData and would always match.)
   useEffect(() => {
     if (isEdit && initialData && priceCalculation && priceCalculation.breakdown &&
         formData.checkIn === initialData.checkIn &&
         formData.checkOut === initialData.checkOut &&
         initialData.totalPrice &&
+        priceCalculation.defaultTotal !== undefined &&
         Object.keys(customPrices).length === 0) {
       const savedTotal = Number(initialData.totalPrice)
-      const calculatedTotal = priceCalculation.totalPrice || 0
+      const defaultTotal = priceCalculation.defaultTotal
 
-      // Only set custom prices if the saved total is different from calculated total
-      // This means the price was actually customized
-      if (Math.abs(savedTotal - calculatedTotal) > 0.01) {
-        // Calculate average price per night from saved total
+      if (Math.abs(savedTotal - defaultTotal) > 0.01) {
+        // Spread the saved total evenly across nights as the override per night.
+        const propertyCount = Math.max(formData.propertyIds.length, 1)
         const nightsCount = priceCalculation.breakdown.length
-        const averagePricePerNight = Math.round((savedTotal / nightsCount) * 100) / 100
+        const averagePricePerNight = Math.round((savedTotal / propertyCount / nightsCount) * 100) / 100
 
-        // Set custom prices for all individual dates to the average
         const initialCustomPrices: { [key: string]: number | '' } = {}
         priceCalculation.breakdown.forEach((item) => {
           initialCustomPrices[item.date] = averagePricePerNight
         })
-
-        // Set group_0 which will be used when all dates have the same price
         initialCustomPrices['group_0'] = averagePricePerNight
 
         setCustomPrices(initialCustomPrices)
       }
     }
-  }, [priceCalculation, isEdit, initialData, formData.checkIn, formData.checkOut])
+  }, [priceCalculation, isEdit, initialData, formData.checkIn, formData.checkOut, formData.propertyIds.length])
 
-  // Recalculate total when custom prices change
+  // Recalculate total when custom prices change.
+  // Also handles the "× clicked / input cleared" case: when customPrices was
+  // previously non-empty and is now empty, we must reset priceCalculation.totalPrice
+  // back to the price-list value — otherwise it stays at the last override.
+  const hadCustomPricesRef = useRef(false)
   useEffect(() => {
-    if (priceCalculation && priceCalculation.success && priceCalculation.breakdown) {
-      // Check if any custom prices exist
-      if (Object.keys(customPrices).length > 0) {
-        // Calculate new total from breakdown with custom prices (per property)
-        const pricePerProperty = priceCalculation.breakdown.reduce((sum, item) => {
-          const customPrice = customPrices[item.date]
-          // If custom price is empty string (user is typing), use original price
-          return sum + (customPrice !== undefined && customPrice !== '' ? customPrice : item.price)
-        }, 0)
+    if (!priceCalculation || !priceCalculation.success || !priceCalculation.breakdown) return
 
-        const roundedPricePerProperty = Math.round(pricePerProperty * 100) / 100
+    const hasCustomNow = Object.keys(customPrices).length > 0
+    if (!hasCustomNow && !hadCustomPricesRef.current) return // nothing to do on stable empty state
+    hadCustomPricesRef.current = hasCustomNow
 
-        // For multi-property bookings, update perPropertyPrices
-        let updatedPerPropertyPrices = priceCalculation.perPropertyPrices
-        if (formData.propertyIds.length > 1 && priceCalculation.perPropertyPrices) {
-          updatedPerPropertyPrices = {}
-          formData.propertyIds.forEach(propertyId => {
-            updatedPerPropertyPrices![propertyId] = roundedPricePerProperty
-          })
-        }
+    // Sum per-property using overrides when present, falling back to price-list value
+    // (item.price). Empty string '' means the user is mid-edit — treat as "use price list".
+    const pricePerProperty = priceCalculation.breakdown.reduce((sum, item) => {
+      const customPrice = customPrices[item.date]
+      return sum + (customPrice !== undefined && customPrice !== '' ? customPrice : item.price)
+    }, 0)
 
-        // Update priceCalculation with new total and per-property prices
-        setPriceCalculation(prev => prev ? {
-          ...prev,
-          totalPrice: formData.propertyIds.length > 1
-            ? roundedPricePerProperty * formData.propertyIds.length
-            : roundedPricePerProperty,
-          perPropertyPrices: updatedPerPropertyPrices
-        } : null)
-      }
+    const roundedPricePerProperty = Math.round(pricePerProperty * 100) / 100
+
+    let updatedPerPropertyPrices = priceCalculation.perPropertyPrices
+    if (formData.propertyIds.length > 1 && priceCalculation.perPropertyPrices) {
+      updatedPerPropertyPrices = {}
+      formData.propertyIds.forEach(propertyId => {
+        updatedPerPropertyPrices![propertyId] = roundedPricePerProperty
+      })
     }
+
+    setPriceCalculation(prev => prev ? {
+      ...prev,
+      totalPrice: formData.propertyIds.length > 1
+        ? roundedPricePerProperty * formData.propertyIds.length
+        : roundedPricePerProperty,
+      perPropertyPrices: updatedPerPropertyPrices
+    } : null)
   }, [customPrices, formData.propertyIds])
 
   // Calculate extra bed total when enabled or nights/price changes
@@ -440,6 +445,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         setPriceCalculation({
           success: true,
           totalPrice: finalTotal,
+          defaultTotal: combinedTotal, // remember what the price list says, so we can detect manual overrides on reopen
           nightsCount: data.nightsCount || 0,
           breakdown: data.breakdown, // Include breakdown for UI
           perPropertyPrices
