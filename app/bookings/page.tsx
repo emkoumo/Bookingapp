@@ -139,12 +139,17 @@ function BookingsContent() {
 
   const sortedDates = Object.keys(groupedBookings).sort()
 
-  // Calculate financial totals
+  // Calculate financial totals. Remaining is derived per-booking as
+  // (totalPrice − advancePayment) instead of summing the stored remainingBalance
+  // column, which can be null or out of sync on older records. This way the
+  // three totals always satisfy: advances + remaining = revenue.
   const financialSummary = filteredBookings.reduce((acc, booking) => {
+    const total = booking.totalPrice ? Number(booking.totalPrice) : 0
+    const advance = booking.advancePayment ? Number(booking.advancePayment) : 0
     return {
-      totalRevenue: acc.totalRevenue + (booking.totalPrice ? Number(booking.totalPrice) : 0),
-      totalAdvances: acc.totalAdvances + (booking.advancePayment ? Number(booking.advancePayment) : 0),
-      totalRemaining: acc.totalRemaining + (booking.remainingBalance ? Number(booking.remainingBalance) : 0)
+      totalRevenue: acc.totalRevenue + total,
+      totalAdvances: acc.totalAdvances + advance,
+      totalRemaining: acc.totalRemaining + Math.max(0, total - advance),
     }
   }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
 
