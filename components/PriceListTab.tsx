@@ -116,45 +116,50 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     }
   }
 
-  const handleUpdate = async (id: string) => {
+  const handleUpdate = async (id: string): Promise<boolean> => {
     const range = priceRanges.find(r => r.id === id)
-    if (!range) return
+    if (!range) return false
+
+    // The API expects YYYY-MM-DD and appends its own time component. Strip any
+    // ISO time suffix that may already be on the date (the GET returns full
+    // ISO strings) before sending, otherwise the server tries to parse
+    // "2026-06-01T00:00:00.000ZT00:00:00.000Z" and crashes with 500.
+    const dateOnly = (d: string) => d?.includes('T') ? d.split('T')[0] : d
 
     try {
       const res = await fetch('/api/price-ranges', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(range)
+        body: JSON.stringify({
+          id: range.id,
+          dateFrom: dateOnly(range.dateFrom),
+          dateTo: dateOnly(range.dateTo),
+          pricePerNight: range.pricePerNight,
+        })
       })
 
       const data = await res.json()
 
       if (!res.ok) {
         setError(data.error || 'Αποτυχία ενημέρωσης')
-        return
+        return false
       }
 
-      fetchPriceRanges()
-      setEditing(null)
       setError('')
+      return true
     } catch (error) {
       console.error('Error updating price range:', error)
       setError('Αποτυχία ενημέρωσης')
+      return false
     }
   }
 
-  const handleDelete = async (groupKey: string) => {
+  const handleDeleteGroup = async (rangesToDelete: PriceRange[]) => {
     if (!confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το εύρος τιμών από όλα τα καταλύματα;')) {
       return
     }
 
     try {
-      // Find all price ranges with the same date range and price
-      const rangesToDelete = priceRanges.filter(r =>
-        `${r.dateFrom}-${r.dateTo}-${r.pricePerNight}` === groupKey
-      )
-
-      // Delete all matching ranges
       for (const range of rangesToDelete) {
         await fetch(`/api/price-ranges?id=${range.id}`, {
           method: 'DELETE'
@@ -189,8 +194,11 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     ranges: PriceRange[]
   }>)
 
-  const groupedRangesList = Object.entries(groupedRanges).map(([key, value]) => ({
-    key,
+  // Use the first range's id as a stable identifier — composite date/price
+  // keys mutate the moment the user edits any field, which would unmount the
+  // inline edit form mid-edit. Range ids don't change on update.
+  const groupedRangesList = Object.entries(groupedRanges).map(([compositeKey, value]) => ({
+    key: value.ranges[0]?.id ?? compositeKey,
     ...value
   }))
 
@@ -350,11 +358,16 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                     <div className="flex gap-2">
                       <button
                         onClick={async () => {
-                          // Update all ranges in this group
+                          let allOk = true
                           for (const range of group.ranges) {
-                            await handleUpdate(range.id)
+                            const ok = await handleUpdate(range.id)
+                            if (!ok) allOk = false
                           }
-                          setEditing(null)
+                          // Refresh from server so UI matches whatever actually persisted
+                          await fetchPriceRanges()
+                          // Only close the form if every property's range saved successfully —
+                          // otherwise leave the form open with the error visible
+                          if (allOk) setEditing(null)
                         }}
                         className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold transition-opacity"
                       >
@@ -389,7 +402,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(group.key)}
+                          onClick={() => handleDeleteGroup(group.ranges)}
                           className="p-2 text-red-600 border border-red-300 hover:bg-red-50 rounded-lg transition-colors"
                           title="Διαγραφή"
                         >
