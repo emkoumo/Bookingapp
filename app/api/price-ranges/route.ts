@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { recalculateBookingsForProperty } from '@/lib/recalculateBookings'
 
 // GET - Fetch all price ranges for a property
 export async function GET(request: NextRequest) {
@@ -92,6 +93,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Recompute all bookings on this property so every page reflects the new price list.
+    await recalculateBookingsForProperty(propertyId)
+
     return NextResponse.json(priceRange, { status: 201 })
   } catch (error) {
     console.error('Error creating price range:', error)
@@ -177,6 +181,9 @@ export async function PUT(request: NextRequest) {
       }
     })
 
+    // Recompute all bookings on this property so every page reflects the new price list.
+    await recalculateBookingsForProperty(existing.propertyId)
+
     return NextResponse.json(priceRange)
   } catch (error) {
     console.error('Error updating price range:', error)
@@ -200,9 +207,16 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // Capture propertyId before delete so we can recompute its bookings afterward.
+    const existing = await prisma.priceRange.findUnique({ where: { id } })
+
     await prisma.priceRange.delete({
       where: { id }
     })
+
+    if (existing) {
+      await recalculateBookingsForProperty(existing.propertyId)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
