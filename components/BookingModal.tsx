@@ -389,7 +389,30 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       })
 
       const data = await res.json()
-      setPriceCalculation(data)
+
+      if (data.success) {
+        // Price list total for these dates. Kept as defaultTotal so we can detect
+        // a saved manual override on reopen (single-property path — mirrors the
+        // multi-property logic below).
+        const priceListTotal = data.totalPrice || 0
+
+        // In edit mode with unchanged dates, preserve the saved (possibly
+        // overridden) total instead of snapping back to the price list.
+        const finalTotal = (isEdit && initialData &&
+                           formData.checkIn === initialData.checkIn &&
+                           formData.checkOut === initialData.checkOut &&
+                           initialData.totalPrice)
+          ? Number(initialData.totalPrice)
+          : priceListTotal
+
+        setPriceCalculation({
+          ...data,
+          totalPrice: finalTotal,
+          defaultTotal: priceListTotal,
+        })
+      } else {
+        setPriceCalculation(data)
+      }
     } catch (error) {
       console.error('Error calculating price:', error)
       setPriceCalculation({
