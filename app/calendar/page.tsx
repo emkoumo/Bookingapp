@@ -58,6 +58,9 @@ function CalendarContent() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
   const [modal, setModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
+  // Set when a free calendar day is tapped: pre-fills the new-booking form with
+  // that date and property. Works for past days too, for bookings added late.
+  const [newBookingPrefill, setNewBookingPrefill] = useState<{ checkIn: string; propertyId: string } | null>(null)
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
   const [showBlockManagementModal, setShowBlockManagementModal] = useState(false)
 
@@ -201,6 +204,7 @@ function CalendarContent() {
       }
 
       setShowBookingModal(false)
+      setNewBookingPrefill(null)
       setToast({ message: `${data.propertyIds.length} κράτηση/εις δημιουργήθηκε/αν!`, type: 'success' })
       fetchData()
     } catch (error) {
@@ -283,6 +287,14 @@ function CalendarContent() {
     setShowBlockManagementModal(true)
   }
 
+  // Tapping a free day (past or future) opens the new-booking form with that day
+  // as check-in and that property preselected. Check-out is left blank so the
+  // existing availability checks still drive the range the user picks.
+  const handleFreeDateClick = (date: string, propertyId: string) => {
+    setNewBookingPrefill({ checkIn: date, propertyId })
+    setShowBookingModal(true)
+  }
+
   const setSeasonRange = () => {
     const currentYear = new Date().getFullYear()
     setDateRangeStart(`${currentYear}-04`)
@@ -358,9 +370,27 @@ function CalendarContent() {
       )}
       {showBookingModal && (
         <BookingModal
+          key={newBookingPrefill?.checkIn ?? 'new'}
           properties={properties}
-          onClose={() => setShowBookingModal(false)}
+          onClose={() => {
+            setShowBookingModal(false)
+            setNewBookingPrefill(null)
+          }}
           onSave={handleSaveBooking}
+          initialData={
+            newBookingPrefill
+              ? {
+                  propertyIds: [newBookingPrefill.propertyId],
+                  customerName: '',
+                  contactInfo: '',
+                  contactChannel: '',
+                  checkIn: newBookingPrefill.checkIn,
+                  checkOut: '',
+                  deposit: '',
+                  notes: '',
+                }
+              : undefined
+          }
           businessId={businessId || ''}
         />
       )}
@@ -425,7 +455,10 @@ function CalendarContent() {
                 </h1>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setShowBookingModal(true)}
+                    onClick={() => {
+                      setNewBookingPrefill(null)
+                      setShowBookingModal(true)
+                    }}
                     className="px-2.5 py-2 md:px-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                   >
                     + Νέα
@@ -540,6 +573,7 @@ function CalendarContent() {
                 selectedProperty={selectedProperty}
                 onBookingClick={handleEventClick}
                 onBlockedDateClick={handleBlockedDateClick}
+                onFreeDateClick={handleFreeDateClick}
                 getColorForProperty={getColorForProperty}
                 dateRangeStart={dateRangeStart}
                 dateRangeEnd={dateRangeEnd}

@@ -772,7 +772,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 placeholder="Ημερομηνία"
                 disabledDates={disabledDates}
                 isEditMode={isEdit}
-                minDate={format(new Date(), 'yyyy-MM-dd')}
+                // No lower bound: past dates stay selectable so bookings that were
+                // missed or forgotten can still be entered after the fact.
                 maxDate={formData.checkOut || undefined}
                 highlightDate={formData.checkOut || undefined}
               />
@@ -782,7 +783,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 placeholder="Ημερομηνία"
                 disabledDates={checkOutDisabledDates}
                 isEditMode={isEdit}
-                minDate={formData.checkIn || format(new Date(), 'yyyy-MM-dd')}
+                // Only bound by check-in, not by today — check-out must stay after
+                // check-in, but both may be in the past.
+                minDate={formData.checkIn || undefined}
                 highlightDate={formData.checkIn || undefined}
                 initialMonth={formData.checkIn || undefined}
               />

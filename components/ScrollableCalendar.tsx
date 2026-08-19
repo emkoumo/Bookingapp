@@ -42,6 +42,9 @@ interface ScrollableCalendarProps {
   selectedProperty: string
   onBookingClick: (booking: Booking) => void
   onBlockedDateClick: (blockedDate: BlockedDate) => void
+  // Fired when a free day is tapped (date as 'yyyy-MM-dd'). Past days included,
+  // so bookings that were forgotten can be added retroactively.
+  onFreeDateClick?: (date: string, propertyId: string) => void
   getColorForProperty: (propertyId: string) => string
   dateRangeStart?: string
   dateRangeEnd?: string
@@ -54,6 +57,7 @@ export default function ScrollableCalendar({
   selectedProperty,
   onBookingClick,
   onBlockedDateClick,
+  onFreeDateClick,
   getColorForProperty,
   dateRangeStart,
   dateRangeEnd,
@@ -273,6 +277,8 @@ export default function ScrollableCalendar({
                             onBlockedDateClick(blockedDate)
                           } else if (booking) {
                             onBookingClick(booking)
+                          } else if (onFreeDateClick) {
+                            onFreeDateClick(format(day, 'yyyy-MM-dd'), property.id)
                           }
                         }}
                         style={{
@@ -397,6 +403,8 @@ export default function ScrollableCalendar({
                               onBlockedDateClick(blockedDate)
                             } else if (booking) {
                               onBookingClick(booking)
+                            } else if (onFreeDateClick) {
+                              onFreeDateClick(format(day, 'yyyy-MM-dd'), property.id)
                             }
                           }}
                           style={{
