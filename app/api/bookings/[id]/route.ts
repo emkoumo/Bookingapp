@@ -44,6 +44,11 @@ export async function PATCH(
     // Remove propertyId from body as it cannot be updated (it's a relation field)
     const { propertyId, ...updateData } = body
 
+    // An edit that carries a totalPrice was priced by hand, so mark it custom and
+    // keep the price-list recalculation away from it. Once custom, always custom —
+    // we never clear the flag here, only an explicit reprice should do that.
+    const setsPrice = body.totalPrice !== undefined && body.totalPrice !== null
+
     const booking = await prisma.booking.update({
       where: { id },
       data: {
@@ -51,6 +56,7 @@ export async function PATCH(
         checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
         checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
         advancePaymentDate: body.advancePaymentDate ? new Date(body.advancePaymentDate) : undefined,
+        hasCustomPrice: setsPrice ? true : undefined,
       },
       include: {
         property: {

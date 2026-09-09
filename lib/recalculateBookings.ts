@@ -8,20 +8,21 @@ import { prisma } from './prisma'
  * price list. Includes past bookings.
  *
  * Behaviour:
- *  - For each booking, sum the per-night price-list value for every night
- *    of the stay (checkout night not counted).
+ *  - Bookings with hasCustomPrice are SKIPPED. Their totals were set by hand
+ *    (negotiated rates, prepayments, package deals) and are not derivable from
+ *    the price list, so recalculating them destroys data. A price-list change
+ *    must never overwrite a manually-set price.
+ *  - For each remaining booking, sum the per-night price-list value for every
+ *    night of the stay (checkout night not counted).
  *  - If any night has no matching PriceRange, the booking is SKIPPED
  *    (we don't zero it out, we keep whatever total was already saved).
  *  - extraBedTotal is preserved and added back into totalPrice.
  *  - remainingBalance is updated to (new total − advancePayment).
  *  - If the new total equals what's already saved, no DB write happens.
- *
- * NOTE: manual per-night overrides on bookings are reset to the price-list
- * value. This was the user's explicit choice when designing this feature.
  */
 export async function recalculateBookingsForProperty(propertyId: string) {
   const [bookings, ranges] = await Promise.all([
-    prisma.booking.findMany({ where: { propertyId } }),
+    prisma.booking.findMany({ where: { propertyId, hasCustomPrice: false } }),
     prisma.priceRange.findMany({ where: { propertyId } }),
   ])
 
@@ -49,7 +50,9 @@ export async function recalculateBookingsForProperty(propertyId: string) {
       where: { id: booking.id },
       data: {
         totalPrice: newTotal,
-        remainingBalance: booking.advancePayment ? newRemaining : null,
+        // With no advance paid the whole total is still outstanding, so write
+        // that rather than NULL — nulling it here used to erase the balance.
+        remainingBalance: newRemaining,
       },
     })
     summary.updated++

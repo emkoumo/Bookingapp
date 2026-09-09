@@ -139,10 +139,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Price validation: Only validate if totalPrice is not provided (custom price case)
+    // Price validation: Only validate if totalPrice is not provided (custom price case).
+    // A totalPrice in the request body means the user typed it in, so the booking
+    // carries a manual price and the price-list recalculation must leave it alone.
+    const isCustomPrice = totalPrice !== undefined && totalPrice !== null
     let calculatedTotal = 0
 
-    if (!totalPrice) {
+    if (!isCustomPrice) {
       // Only validate prices from database if no custom totalPrice is provided
       const checkInDate = parseISO(checkIn)
       const checkOutDate = parseISO(checkOut)
@@ -204,14 +207,19 @@ export async function POST(request: Request) {
         deposit: deposit || null,
         notes: notes || null,
         status: status || 'active',
-        totalPrice: totalPrice || calculatedTotal,
-        advancePayment: advancePayment || null,
-        remainingBalance: remainingBalance || (totalPrice ? totalPrice - (advancePayment || 0) : calculatedTotal),
+        // ?? not ||, so a legitimate 0 (free stay, fully-paid balance) is kept
+        // instead of being replaced by a price-list total.
+        totalPrice: totalPrice ?? calculatedTotal,
+        advancePayment: advancePayment ?? null,
+        remainingBalance:
+          remainingBalance ??
+          (isCustomPrice ? totalPrice - (advancePayment ?? 0) : calculatedTotal - (advancePayment ?? 0)),
         advancePaymentMethod: advancePaymentMethod || null,
         advancePaymentDate: advancePaymentDate ? new Date(advancePaymentDate) : null,
         extraBedEnabled: extraBedEnabled || false,
-        extraBedPricePerNight: extraBedPricePerNight || null,
-        extraBedTotal: extraBedTotal || null
+        extraBedPricePerNight: extraBedPricePerNight ?? null,
+        extraBedTotal: extraBedTotal ?? null,
+        hasCustomPrice: isCustomPrice
       },
       include: {
         property: {
