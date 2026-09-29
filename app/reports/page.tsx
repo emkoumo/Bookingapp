@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
+import AnalyticsTab from '@/components/AnalyticsTab'
 
 interface Property {
   id: string
@@ -33,11 +34,23 @@ interface Booking {
   extraBedEnabled?: boolean
   extraBedPricePerNight?: number
   extraBedTotal?: number
+  createdAt?: string
   property: {
     id: string
     name: string
   }
 }
+
+interface BlockedDate {
+  id: string
+  startDate: string
+  endDate: string
+  property: {
+    id: string
+    name: string
+  }
+}
+
 function ReportsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -45,7 +58,9 @@ function ReportsContent() {
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [selectedProperty, setSelectedProperty] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'bookings' | 'analytics'>('bookings')
   const [activeTab, setActiveTab] = useState<'future' | 'historical'>('future')
   const [filterMode, setFilterMode] = useState<string>('all')
   const [customDateEnabled, setCustomDateEnabled] = useState(false)
@@ -65,16 +80,21 @@ function ReportsContent() {
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const [bookingsRes, propertiesRes] = await Promise.all([
+      const [bookingsRes, propertiesRes, blockedRes] = await Promise.all([
         fetch(`/api/bookings?businessId=${businessId}`),
         fetch(`/api/properties?businessId=${businessId}`),
+        fetch(`/api/blocked-dates?businessId=${businessId}`),
       ])
 
       const bookingsData = await bookingsRes.json()
       const propertiesData = await propertiesRes.json()
+      // Blocked dates only refine the occupancy denominator; if they fail to
+      // load the rest of the page must still work.
+      const blockedData = blockedRes.ok ? await blockedRes.json() : []
 
       setBookings(bookingsData)
       setProperties(propertiesData)
+      setBlockedDates(Array.isArray(blockedData) ? blockedData : [])
     } catch (error) {
       console.error('Error fetching data:', error)
       setToast({ message: 'Σφάλμα κατά τη φόρτωση δεδομένων', type: 'error' })
@@ -468,6 +488,32 @@ function ReportsContent() {
               </div>
             </div>
 
+            {/* View switcher: bookings list vs analytics */}
+            <div className="py-3 border-b border-gray-200 px-4">
+              <div className="grid grid-cols-2 gap-2 max-w-md">
+                <button
+                  onClick={() => setViewMode('bookings')}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-colors ${
+                    viewMode === 'bookings'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Κρατήσεις
+                </button>
+                <button
+                  onClick={() => setViewMode('analytics')}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-colors ${
+                    viewMode === 'analytics'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Αναλυτικά
+                </button>
+              </div>
+            </div>
+
             {/* Property Tabs Section */}
             <div className="py-3 border-b border-gray-200">
               <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
@@ -557,8 +603,9 @@ function ReportsContent() {
               )}
             </div>
 
-            {/* Main Tabs: Μελλοντικά / Ιστορικό - Hide when custom date is active */}
-            {!customDateEnabled && (
+            {/* Main Tabs: Μελλοντικά / Ιστορικό — bookings list only. Analytics
+                has its own period chips and defaults to the full picture. */}
+            {!customDateEnabled && viewMode === 'bookings' && (
               <div className="py-3 border-b border-gray-200 px-4">
                 <div className="grid grid-cols-2 gap-2 mb-3 max-w-md">
                   <button
@@ -651,9 +698,13 @@ function ReportsContent() {
             <div ref={reportContentRef}>
             {/* Report Header with Date Range */}
             <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">Αναφορά Κρατήσεων</h2>
+              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">
+                {viewMode === 'analytics' ? 'Αναλυτικά Στοιχεία' : 'Αναφορά Κρατήσεων'}
+              </h2>
               <p className="text-sm text-gray-600 text-center">
-                {customDateEnabled ? (
+                {viewMode === 'analytics' ? (
+                  'Επιλέξτε περίοδο από τα φίλτρα'
+                ) : customDateEnabled ? (
                   startDate && endDate ? (
                     `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
                   ) : (
@@ -667,6 +718,18 @@ function ReportsContent() {
               </p>
             </div>
 
+            {viewMode === 'analytics' ? (
+              <AnalyticsTab
+                bookings={bookings}
+                properties={properties}
+                blockedDates={blockedDates}
+                selectedProperty={selectedProperty}
+                customRange={
+                  customDateEnabled && startDate && endDate ? { start: startDate, end: endDate } : null
+                }
+              />
+            ) : (
+            <>
             {/* Check-ins Count */}
             {filteredBookings.length > 0 && (
               <div className="px-4 py-2 border-b border-gray-200">
@@ -1004,6 +1067,8 @@ function ReportsContent() {
                 </>
               )}
             </div>
+            </>
+            )}
             </div>
             {/* End Report Content */}
           </div>
