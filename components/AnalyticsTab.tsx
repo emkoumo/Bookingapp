@@ -420,14 +420,8 @@ export default function AnalyticsTab({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Tile label="Συνολική αξία" value={euro(startingValue)} />
           <Tile label="Προκαταβολές" value={euro(advances)} />
-          <Tile label="Υπόλοιπο" value={euro(outstanding)} />
+          <Tile label="Εξόφληση" value={euro(outstanding)} />
         </div>
-        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-          Η εφαρμογή καταγράφει μόνο την προκαταβολή. Η εξόφληση κατά την άφιξη δεν
-          καταχωρείται πουθενά, γι&apos; αυτό και οι περασμένες κρατήσεις εμφανίζονται
-          σχεδόν πάντα ως ανεξόφλητες. Το ποσό αυτό δείχνει τι δεν έχει καταγραφεί —
-          όχι απαραίτητα τι οφείλεται.
-        </p>
       </section>
 
       {/* Per property */}
