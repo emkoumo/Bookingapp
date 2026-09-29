@@ -279,10 +279,26 @@ export default function AnalyticsTab({
       <section>
         <h3 className="text-sm font-bold text-gray-700 mb-3">Βασικοί δείκτες</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Tile label="Μέση τιμή διαν. (ADR)" value={euro(adr)} hint="Έσοδα ÷ κρατημένες διαν." />
-          <Tile label="Έσοδα ανά διαθέσιμη διαν." value={euro(revpar)} hint="RevPAR" />
-          <Tile label="Έσοδα περιόδου" value={euro(revenueInRange)} hint="Αναλογικά στις διαν." />
-          <Tile label="Κρατημένες διαν." value={occupiedNights.toLocaleString('el-GR')} hint={`από ${availableNights.toLocaleString('el-GR')}`} />
+          <Tile
+            label="Έσοδα περιόδου"
+            value={euro(revenueInRange)}
+            hint="Μόνο οι διαν. μέσα στο εύρος"
+          />
+          <Tile
+            label="Μέση τιμή ανά διαν."
+            value={euro(adr)}
+            hint="Πόσο πιάνει κατά μέσο όρο μια γεμάτη βραδιά"
+          />
+          <Tile
+            label="Έσοδο ανά κατάλυμα/ημέρα"
+            value={euro(revpar)}
+            hint="Μετρά και τις κενές μέρες: τιμή × πληρότητα μαζί"
+          />
+          <Tile
+            label="Κρατημένες διαν."
+            value={`${occupiedNights.toLocaleString('el-GR')} (${pct(occupancy)})`}
+            hint={`από ${availableNights.toLocaleString('el-GR')} διαθέσιμες`}
+          />
         </div>
       </section>
 
@@ -300,15 +316,25 @@ export default function AnalyticsTab({
             hint="Από καταχώρηση έως άφιξη"
           />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+      </section>
+
+      {/* Payments. Deliberately separated and caveated: the schema records the
+          deposit only, so "υπόλοιπο" means "not recorded as paid", which is not
+          the same as "not paid". */}
+      <section>
+        <h3 className="text-sm font-bold text-gray-700 mb-1">Πληρωμές</h3>
+        <p className="text-xs text-gray-500 mb-3">Για τις κρατήσεις που ξεκινούν στην περίοδο.</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <Tile label="Συνολική αξία" value={euro(startingValue)} />
-          <Tile label="Προκαταβολές" value={euro(advances)} />
-          <Tile label="Υπόλοιπο" value={euro(outstanding)} />
-          <Tile
-            label="Εισπραγμένο"
-            value={startingValue > 0 ? pct(advances / startingValue) : '—'}
-          />
+          <Tile label="Καταγεγραμμένες προκαταβολές" value={euro(advances)} />
+          <Tile label="Χωρίς καταγραφή εξόφλησης" value={euro(outstanding)} />
         </div>
+        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+          Η εφαρμογή καταγράφει μόνο την προκαταβολή. Η εξόφληση κατά την άφιξη δεν
+          καταχωρείται πουθενά, γι&apos; αυτό και οι περασμένες κρατήσεις εμφανίζονται
+          σχεδόν πάντα ως ανεξόφλητες. Το ποσό αυτό δείχνει τι δεν έχει καταγραφεί —
+          όχι απαραίτητα τι οφείλεται.
+        </p>
       </section>
 
       {/* Per property */}
