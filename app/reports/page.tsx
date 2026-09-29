@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
+import AnalyticsTab from '@/components/AnalyticsTab'
 
 interface Property {
   id: string
@@ -33,11 +34,23 @@ interface Booking {
   extraBedEnabled?: boolean
   extraBedPricePerNight?: number
   extraBedTotal?: number
+  createdAt?: string
   property: {
     id: string
     name: string
   }
 }
+
+interface BlockedDate {
+  id: string
+  startDate: string
+  endDate: string
+  property: {
+    id: string
+    name: string
+  }
+}
+
 function ReportsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -45,7 +58,9 @@ function ReportsContent() {
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [selectedProperty, setSelectedProperty] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'bookings' | 'analytics'>('bookings')
   const [activeTab, setActiveTab] = useState<'future' | 'historical'>('future')
   const [filterMode, setFilterMode] = useState<string>('all')
   const [customDateEnabled, setCustomDateEnabled] = useState(false)
@@ -65,16 +80,21 @@ function ReportsContent() {
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const [bookingsRes, propertiesRes] = await Promise.all([
+      const [bookingsRes, propertiesRes, blockedRes] = await Promise.all([
         fetch(`/api/bookings?businessId=${businessId}`),
         fetch(`/api/properties?businessId=${businessId}`),
+        fetch(`/api/blocked-dates?businessId=${businessId}`),
       ])
 
       const bookingsData = await bookingsRes.json()
       const propertiesData = await propertiesRes.json()
+      // Blocked dates only refine the occupancy denominator; if they fail to
+      // load the rest of the page must still work.
+      const blockedData = blockedRes.ok ? await blockedRes.json() : []
 
       setBookings(bookingsData)
       setProperties(propertiesData)
+      setBlockedDates(Array.isArray(blockedData) ? blockedData : [])
     } catch (error) {
       console.error('Error fetching data:', error)
       setToast({ message: 'Σφάλμα κατά τη φόρτωση δεδομένων', type: 'error' })
@@ -221,6 +241,38 @@ function ReportsContent() {
       totalRemaining: acc.totalRemaining + Math.max(0, total - advance),
     }
   }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
+
+  // Analytics needs an explicit [from, to] window — occupancy is meaningless
+  // without one. Custom range wins; then a preset; otherwise fall back to the
+  // span of the data, respecting whichever main tab is active so "Όλα" under
+  // Μελλοντικά doesn't silently pull in past nights.
+  const analyticsRange = (() => {
+    if (customDateEnabled && startDate && endDate) {
+      return { start: startDate, end: endDate }
+    }
+    if (filterMode !== 'all') {
+      const r = getDateRangeForFilter(filterMode)
+      if (r) return r
+    }
+
+    const scoped = bookings.filter(
+      (b) => b.status === 'active' && (selectedProperty === 'all' || b.property.id === selectedProperty)
+    )
+    if (scoped.length === 0) return { start: '', end: '' }
+
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const checkIns = scoped.map((b) => b.checkIn.slice(0, 10)).sort()
+    // checkOut is exclusive, so the last billable night is the day before.
+    const lastNight = scoped
+      .map((b) => format(new Date(new Date(b.checkOut.slice(0, 10)).getTime() - 86400000), 'yyyy-MM-dd'))
+      .sort()
+      .slice(-1)[0]
+
+    if (activeTab === 'future') {
+      return { start: today, end: lastNight > today ? lastNight : today }
+    }
+    return { start: checkIns[0], end: today }
+  })()
 
   const handleTabChange = (tab: 'future' | 'historical') => {
     setActiveTab(tab)
@@ -468,6 +520,32 @@ function ReportsContent() {
               </div>
             </div>
 
+            {/* View switcher: bookings list vs analytics */}
+            <div className="py-3 border-b border-gray-200 px-4">
+              <div className="grid grid-cols-2 gap-2 max-w-md">
+                <button
+                  onClick={() => setViewMode('bookings')}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-colors ${
+                    viewMode === 'bookings'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Κρατήσεις
+                </button>
+                <button
+                  onClick={() => setViewMode('analytics')}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-colors ${
+                    viewMode === 'analytics'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Αναλυτικά
+                </button>
+              </div>
+            </div>
+
             {/* Property Tabs Section */}
             <div className="py-3 border-b border-gray-200">
               <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
@@ -651,9 +729,17 @@ function ReportsContent() {
             <div ref={reportContentRef}>
             {/* Report Header with Date Range */}
             <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">Αναφορά Κρατήσεων</h2>
+              <h2 className="text-lg font-bold text-gray-900 text-center mb-1">
+                {viewMode === 'analytics' ? 'Αναλυτικά Στοιχεία' : 'Αναφορά Κρατήσεων'}
+              </h2>
               <p className="text-sm text-gray-600 text-center">
-                {customDateEnabled ? (
+                {viewMode === 'analytics' ? (
+                  analyticsRange.start && analyticsRange.end ? (
+                    `Περίοδος: ${format(parseISO(analyticsRange.start), 'd MMM yyyy', { locale: el })} - ${format(parseISO(analyticsRange.end), 'd MMM yyyy', { locale: el })}`
+                  ) : (
+                    'Επιλέξτε εύρος ημερομηνιών'
+                  )
+                ) : customDateEnabled ? (
                   startDate && endDate ? (
                     `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
                   ) : (
@@ -667,6 +753,17 @@ function ReportsContent() {
               </p>
             </div>
 
+            {viewMode === 'analytics' ? (
+              <AnalyticsTab
+                bookings={bookings}
+                properties={properties}
+                blockedDates={blockedDates}
+                selectedProperty={selectedProperty}
+                rangeStart={analyticsRange.start}
+                rangeEnd={analyticsRange.end}
+              />
+            ) : (
+            <>
             {/* Check-ins Count */}
             {filteredBookings.length > 0 && (
               <div className="px-4 py-2 border-b border-gray-200">
@@ -1004,6 +1101,8 @@ function ReportsContent() {
                 </>
               )}
             </div>
+            </>
+            )}
             </div>
             {/* End Report Content */}
           </div>
