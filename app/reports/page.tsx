@@ -242,38 +242,6 @@ function ReportsContent() {
     }
   }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
 
-  // Analytics needs an explicit [from, to] window — occupancy is meaningless
-  // without one. Custom range wins; then a preset; otherwise fall back to the
-  // span of the data, respecting whichever main tab is active so "Όλα" under
-  // Μελλοντικά doesn't silently pull in past nights.
-  const analyticsRange = (() => {
-    if (customDateEnabled && startDate && endDate) {
-      return { start: startDate, end: endDate }
-    }
-    if (filterMode !== 'all') {
-      const r = getDateRangeForFilter(filterMode)
-      if (r) return r
-    }
-
-    const scoped = bookings.filter(
-      (b) => b.status === 'active' && (selectedProperty === 'all' || b.property.id === selectedProperty)
-    )
-    if (scoped.length === 0) return { start: '', end: '' }
-
-    const today = format(new Date(), 'yyyy-MM-dd')
-    const checkIns = scoped.map((b) => b.checkIn.slice(0, 10)).sort()
-    // checkOut is exclusive, so the last billable night is the day before.
-    const lastNight = scoped
-      .map((b) => format(new Date(new Date(b.checkOut.slice(0, 10)).getTime() - 86400000), 'yyyy-MM-dd'))
-      .sort()
-      .slice(-1)[0]
-
-    if (activeTab === 'future') {
-      return { start: today, end: lastNight > today ? lastNight : today }
-    }
-    return { start: checkIns[0], end: today }
-  })()
-
   const handleTabChange = (tab: 'future' | 'historical') => {
     setActiveTab(tab)
     setFilterMode('all')
@@ -635,8 +603,9 @@ function ReportsContent() {
               )}
             </div>
 
-            {/* Main Tabs: Μελλοντικά / Ιστορικό - Hide when custom date is active */}
-            {!customDateEnabled && (
+            {/* Main Tabs: Μελλοντικά / Ιστορικό — bookings list only. Analytics
+                has its own period chips and defaults to the full picture. */}
+            {!customDateEnabled && viewMode === 'bookings' && (
               <div className="py-3 border-b border-gray-200 px-4">
                 <div className="grid grid-cols-2 gap-2 mb-3 max-w-md">
                   <button
@@ -734,11 +703,7 @@ function ReportsContent() {
               </h2>
               <p className="text-sm text-gray-600 text-center">
                 {viewMode === 'analytics' ? (
-                  analyticsRange.start && analyticsRange.end ? (
-                    `Περίοδος: ${format(parseISO(analyticsRange.start), 'd MMM yyyy', { locale: el })} - ${format(parseISO(analyticsRange.end), 'd MMM yyyy', { locale: el })}`
-                  ) : (
-                    'Επιλέξτε εύρος ημερομηνιών'
-                  )
+                  'Επιλέξτε περίοδο από τα φίλτρα'
                 ) : customDateEnabled ? (
                   startDate && endDate ? (
                     `Περίοδος: ${format(parseISO(startDate), 'd MMM yyyy', { locale: el })} - ${format(parseISO(endDate), 'd MMM yyyy', { locale: el })}`
@@ -759,8 +724,9 @@ function ReportsContent() {
                 properties={properties}
                 blockedDates={blockedDates}
                 selectedProperty={selectedProperty}
-                rangeStart={analyticsRange.start}
-                rangeEnd={analyticsRange.end}
+                customRange={
+                  customDateEnabled && startDate && endDate ? { start: startDate, end: endDate } : null
+                }
               />
             ) : (
             <>

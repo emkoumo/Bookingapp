@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 /**
  * Analytics view for the Reports page.
  *
@@ -49,8 +51,8 @@ interface Props {
   properties: Property[]
   blockedDates: BlockedDate[]
   selectedProperty: string
-  rangeStart: string
-  rangeEnd: string
+  /** Set when the page's custom date range is on; overrides the period chips. */
+  customRange: { start: string; end: string } | null
 }
 
 /** Days since epoch, from a yyyy-MM-dd or full ISO string. */
@@ -83,15 +85,101 @@ export default function AnalyticsTab({
   properties,
   blockedDates,
   selectedProperty,
-  rangeStart,
-  rangeEnd,
+  customRange,
 }: Props) {
-  const hasRange = Boolean(rangeStart && rangeEnd)
+  // 'all' is the default on purpose: the first thing you should see is the
+  // whole picture, past and future together, not one half of it.
+  const [period, setPeriod] = useState<string>('all')
 
-  if (!hasRange) {
+  const scopedProperties =
+    selectedProperty === 'all' ? properties : properties.filter((p) => p.id === selectedProperty)
+
+  const active = bookings.filter(
+    (b) => b.status === 'active' && (selectedProperty === 'all' || b.property.id === selectedProperty)
+  )
+
+  // Every month the data actually touches, oldest first, for the chip row.
+  const monthChips: Array<{ key: string; label: string; start: string; end: string }> = []
+  {
+    const seen = new Set<string>()
+    for (const b of active) {
+      const bIn = toDay(b.checkIn)
+      const bOut = toDay(b.checkOut)
+      if (bOut - bIn <= 0) continue
+      for (let d = bIn; d < bOut; d++) {
+        const dt = dayToDate(d)
+        const key = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`
+        if (seen.has(key)) continue
+        seen.add(key)
+      }
+    }
+    for (const key of Array.from(seen).sort()) {
+      const [y, m] = key.split('-').map(Number)
+      monthChips.push({
+        key,
+        label: `${GREEK_MONTHS[m - 1]} ${String(y).slice(2)}`,
+        start: `${key}-01`,
+        end: new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10),
+      })
+    }
+  }
+
+  // Resolve the active window: custom range wins, then a month chip, then the
+  // full span of the data.
+  let rangeStart = ''
+  let rangeEnd = ''
+  if (customRange && customRange.start && customRange.end) {
+    rangeStart = customRange.start
+    rangeEnd = customRange.end
+  } else if (period !== 'all') {
+    const chip = monthChips.find((c) => c.key === period)
+    if (chip) {
+      rangeStart = chip.start
+      rangeEnd = chip.end
+    }
+  }
+  if (!rangeStart && monthChips.length > 0) {
+    rangeStart = monthChips[0].start
+    rangeEnd = monthChips[monthChips.length - 1].end
+  }
+
+  const chips = (
+    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+      <button
+        onClick={() => setPeriod('all')}
+        disabled={Boolean(customRange)}
+        className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
+          period === 'all' && !customRange
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        Όλα
+      </button>
+      {monthChips.map((c) => (
+        <button
+          key={c.key}
+          onClick={() => setPeriod(c.key)}
+          disabled={Boolean(customRange)}
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
+            period === c.key && !customRange
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (!rangeStart || !rangeEnd) {
     return (
-      <div className="px-4 py-12 text-center text-gray-500 text-sm">
-        Επιλέξτε εύρος ημερομηνιών για να δείτε τα αναλυτικά στοιχεία.
+      <div className="px-4 py-4">
+        {chips}
+        <div className="py-12 text-center text-gray-500 text-sm">
+          Δεν υπάρχουν κρατήσεις για ανάλυση.
+        </div>
       </div>
     )
   }
@@ -101,20 +189,16 @@ export default function AnalyticsTab({
 
   if (to < from) {
     return (
-      <div className="px-4 py-12 text-center text-gray-500 text-sm">
-        Η ημερομηνία λήξης πρέπει να είναι μετά την έναρξη.
+      <div className="px-4 py-4">
+        {chips}
+        <div className="py-12 text-center text-gray-500 text-sm">
+          Η ημερομηνία λήξης πρέπει να είναι μετά την έναρξη.
+        </div>
       </div>
     )
   }
 
   const rangeNights = to - from + 1
-
-  const scopedProperties =
-    selectedProperty === 'all' ? properties : properties.filter((p) => p.id === selectedProperty)
-
-  const active = bookings.filter(
-    (b) => b.status === 'active' && (selectedProperty === 'all' || b.property.id === selectedProperty)
-  )
 
   // ---- Night-level -------------------------------------------------------
   type Contribution = { nights: number; revenue: number; booking: Booking }
@@ -147,7 +231,6 @@ export default function AnalyticsTab({
 
   const occupancy = availableNights > 0 ? occupiedNights / availableNights : 0
   const adr = occupiedNights > 0 ? revenueInRange / occupiedNights : 0
-  const revpar = availableNights > 0 ? revenueInRange / availableNights : 0
 
   // ---- Booking-level -----------------------------------------------------
   const starting = active.filter((b) => {
@@ -247,6 +330,18 @@ export default function AnalyticsTab({
 
   return (
     <div className="px-4 py-4 space-y-6">
+      {/* Period chips */}
+      <section>
+        {chips}
+        <p className="mt-2 text-xs text-gray-500">
+          {customRange
+            ? 'Προσαρμοσμένο εύρος (από το φίλτρο πιο πάνω)'
+            : period === 'all'
+              ? `Όλη η περίοδος — παρελθόν και μέλλον (${rangeStart.slice(0, 7)} έως ${rangeEnd.slice(0, 7)})`
+              : `${rangeStart} έως ${rangeEnd}`}
+        </p>
+      </section>
+
       {/* Hero: occupancy */}
       <section>
         <div className="flex items-baseline justify-between mb-2">
@@ -278,7 +373,7 @@ export default function AnalyticsTab({
       {/* KPI row */}
       <section>
         <h3 className="text-sm font-bold text-gray-700 mb-3">Βασικοί δείκτες</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Tile
             label="Έσοδα περιόδου"
             value={euro(revenueInRange)}
@@ -287,12 +382,7 @@ export default function AnalyticsTab({
           <Tile
             label="Μέση τιμή ανά διαν."
             value={euro(adr)}
-            hint="Πόσο πιάνει κατά μέσο όρο μια γεμάτη βραδιά"
-          />
-          <Tile
-            label="Έσοδο ανά κατάλυμα/ημέρα"
-            value={euro(revpar)}
-            hint="Μετρά και τις κενές μέρες: τιμή × πληρότητα μαζί"
+            hint="Κατά μέσο όρο ανά γεμάτη βραδιά"
           />
           <Tile
             label="Κρατημένες διαν."
@@ -326,8 +416,8 @@ export default function AnalyticsTab({
         <p className="text-xs text-gray-500 mb-3">Για τις κρατήσεις που ξεκινούν στην περίοδο.</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <Tile label="Συνολική αξία" value={euro(startingValue)} />
-          <Tile label="Καταγεγραμμένες προκαταβολές" value={euro(advances)} />
-          <Tile label="Χωρίς καταγραφή εξόφλησης" value={euro(outstanding)} />
+          <Tile label="Προκαταβολές" value={euro(advances)} />
+          <Tile label="Υπόλοιπο" value={euro(outstanding)} />
         </div>
         <p className="mt-2 text-xs text-gray-500 leading-relaxed">
           Η εφαρμογή καταγράφει μόνο την προκαταβολή. Η εξόφληση κατά την άφιξη δεν
