@@ -145,10 +145,12 @@ export default function AnalyticsTab({
 
   const chips = (
     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4">
+      {/* shrink-0 is what makes the row actually scroll: without it flex
+          children compress to fit and the overflow never happens. */}
       <button
         onClick={() => setPeriod('all')}
         disabled={Boolean(customRange)}
-        className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
+        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
           period === 'all' && !customRange
             ? 'bg-blue-600 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -161,7 +163,7 @@ export default function AnalyticsTab({
           key={c.key}
           onClick={() => setPeriod(c.key)}
           disabled={Boolean(customRange)}
-          className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
+          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 ${
             period === c.key && !customRange
               ? 'bg-blue-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -373,7 +375,8 @@ export default function AnalyticsTab({
       {/* KPI row */}
       <section>
         <h3 className="text-sm font-bold text-gray-700 mb-3">Βασικοί δείκτες</h3>
-        <div className="grid grid-cols-3 gap-3">
+        {/* One per row on mobile — these labels and hints need the width. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Tile
             label="Έσοδα περιόδου"
             value={euro(revenueInRange)}
@@ -414,7 +417,7 @@ export default function AnalyticsTab({
       <section>
         <h3 className="text-sm font-bold text-gray-700 mb-1">Πληρωμές</h3>
         <p className="text-xs text-gray-500 mb-3">Για τις κρατήσεις που ξεκινούν στην περίοδο.</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Tile label="Συνολική αξία" value={euro(startingValue)} />
           <Tile label="Προκαταβολές" value={euro(advances)} />
           <Tile label="Υπόλοιπο" value={euro(outstanding)} />
