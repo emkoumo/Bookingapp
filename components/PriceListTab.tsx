@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
-import { currentYear } from '@/lib/year'
+import { currentYear, orderYears } from '@/lib/year'
 
 interface Property {
   id: string
@@ -212,9 +212,8 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
   const yearsWithData = Array.from(
     new Set(priceRanges.map((r) => Number(r.dateFrom.slice(0, 4))))
   )
-  const years = Array.from(
-    new Set([...yearsWithData, currentYear(), currentYear() + 1])
-  ).sort((a, b) => a - b)
+  // Same ordering as the Header's season switcher.
+  const years = orderYears([...yearsWithData, currentYear(), currentYear() + 1])
 
   const countForYear = (y: number) =>
     allGroupedRanges.filter((g) => Number(g.dateFrom.slice(0, 4)) === y).length

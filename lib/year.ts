@@ -20,15 +20,29 @@ export function currentYear(): number {
 }
 
 /**
+ * Shared ordering for every season list in the app, so the Header dropdown and
+ * the price-list tabs never disagree: the current season first (what you work
+ * in), then next season (what you're planning), then earlier seasons newest
+ * first. Duplicates are removed.
+ */
+export function orderYears(years: number[]): number[] {
+  const now = currentYear()
+  const unique = Array.from(new Set(years))
+  const head = unique.filter((y) => y === now)
+  const next = unique.filter((y) => y === now + 1)
+  const rest = unique.filter((y) => y !== now && y !== now + 1).sort((a, b) => b - a)
+  return [...head, ...next, ...rest]
+}
+
+/**
  * Years offered in the switcher: every season from FIRST_SEASON up to next
  * year. Next year matters — bookings for the coming season get taken months
  * ahead, so it has to be selectable before 1 January.
  */
 export function yearOptions(): number[] {
-  const to = currentYear() + 1
   const years: number[] = []
-  for (let y = to; y >= FIRST_SEASON; y--) years.push(y)
-  return years
+  for (let y = FIRST_SEASON; y <= currentYear() + 1; y++) years.push(y)
+  return orderYears(years)
 }
 
 function isValid(year: number): boolean {
