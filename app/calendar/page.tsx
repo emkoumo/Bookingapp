@@ -10,6 +10,7 @@ import BookingModal from '@/components/BookingModal'
 import BlockManagementModal from '@/components/BlockManagementModal'
 import ScrollableCalendar from '@/components/ScrollableCalendar'
 import DatePicker from '@/components/DatePicker'
+import { resolveYear, yearMonthBounds } from '@/lib/year'
 
 interface Property {
   id: string
@@ -49,6 +50,7 @@ function CalendarContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const businessId = searchParams.get('business')
+  const year = resolveYear(searchParams.get('year'))
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
@@ -65,8 +67,10 @@ function CalendarContent() {
   const [showBlockManagementModal, setShowBlockManagementModal] = useState(false)
 
   // Date range filter (optional - for narrowing the 12-month view)
-  const [dateRangeStart, setDateRangeStart] = useState<string>('')
-  const [dateRangeEnd, setDateRangeEnd] = useState<string>('')
+  // Default the visible window to the selected season; the inputs below still
+  // let the user narrow or widen it by hand.
+  const [dateRangeStart, setDateRangeStart] = useState<string>(yearMonthBounds(year).start)
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>(yearMonthBounds(year).end)
 
   useEffect(() => {
     if (businessId) {

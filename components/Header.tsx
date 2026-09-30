@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import FinancialManagementModal from './FinancialManagementModal'
+import { YEAR_STORAGE_KEY, currentYear, resolveYear, yearOptions } from '@/lib/year'
 
 interface Business {
   id: string
@@ -14,13 +15,34 @@ export default function Header() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string>('')
   const [isOpen, setIsOpen] = useState(false)
+  const [isYearOpen, setIsYearOpen] = useState(false)
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear())
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
     fetchBusinesses()
+    // Read from the URL first so a shared or reloaded link keeps its season.
+    const fromUrl = new URLSearchParams(window.location.search).get('year')
+    const year = resolveYear(fromUrl)
+    setSelectedYear(year)
+    localStorage.setItem(YEAR_STORAGE_KEY, String(year))
   }, [])
+
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year)
+    localStorage.setItem(YEAR_STORAGE_KEY, String(year))
+    setIsYearOpen(false)
+
+    // Same reload behaviour as the business switcher, so every page picks the
+    // new season up from the URL.
+    if (pathname !== '/') {
+      const url = new URL(window.location.href)
+      url.searchParams.set('year', String(year))
+      window.location.href = url.toString()
+    }
+  }
 
   const fetchBusinesses = async () => {
     try {
@@ -82,6 +104,50 @@ export default function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* Season (year) Switcher */}
+          <div className="relative">
+            <button
+              onClick={() => setIsYearOpen(!isYearOpen)}
+              className="flex items-center gap-1 px-2.5 py-2 md:px-3 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
+              title="Σεζόν"
+            >
+              <span>{selectedYear}</span>
+              <svg
+                className={`w-4 h-4 transition-transform ${isYearOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isYearOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsYearOpen(false)} />
+                <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-20">
+                  {yearOptions().map((year) => (
+                    <button
+                      key={year}
+                      onClick={() => handleYearChange(year)}
+                      className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors ${
+                        selectedYear === year ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                      }`}
+                    >
+                      <span className="font-semibold text-gray-800">{year}</span>
+                      {year === currentYear() && (
+                        <span className="ml-2 text-xs text-gray-500">τρέχουσα</span>
+                      )}
+                      {year === currentYear() + 1 && (
+                        <span className="ml-2 text-xs text-gray-500">επόμενη</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Payment Settings Button */}
           <button
             onClick={() => setIsPaymentModalOpen(true)}

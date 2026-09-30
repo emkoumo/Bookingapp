@@ -10,6 +10,7 @@ import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
 import AnalyticsTab from '@/components/AnalyticsTab'
+import { resolveYear, stayTouchesYear } from '@/lib/year'
 
 interface Property {
   id: string
@@ -55,6 +56,7 @@ function ReportsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const businessId = searchParams.get('business')
+  const year = resolveYear(searchParams.get('year'))
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
@@ -175,6 +177,9 @@ function ReportsContent() {
   const filteredBookings = bookings.filter((booking) => {
     // Only show active bookings
     if (booking.status !== 'active') return false
+
+    // Season scope — a lens, not a deletion; switching back restores the year.
+    if (!stayTouchesYear(booking.checkIn, booking.checkOut, year)) return false
 
     // Filter by property
     if (selectedProperty !== 'all' && booking.property.id !== selectedProperty) {
@@ -724,6 +729,7 @@ function ReportsContent() {
                 properties={properties}
                 blockedDates={blockedDates}
                 selectedProperty={selectedProperty}
+                year={year}
                 customRange={
                   customDateEnabled && startDate && endDate ? { start: startDate, end: endDate } : null
                 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
+import { currentYear } from '@/lib/year'
 
 interface Property {
   id: string
@@ -35,6 +36,10 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     pricePerNight: ''
   })
   const [error, setError] = useState<string>('')
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear())
+  const [uplift, setUplift] = useState<string>('0')
+  const [copying, setCopying] = useState(false)
+  const [notice, setNotice] = useState<string>('')
 
   // Fetch price ranges on mount
   useEffect(() => {
@@ -197,10 +202,65 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
   // Use the first range's id as a stable identifier — composite date/price
   // keys mutate the moment the user edits any field, which would unmount the
   // inline edit form mid-edit. Range ids don't change on update.
-  const groupedRangesList = Object.entries(groupedRanges).map(([compositeKey, value]) => ({
+  const allGroupedRanges = Object.entries(groupedRanges).map(([compositeKey, value]) => ({
     key: value.ranges[0]?.id ?? compositeKey,
     ...value
   }))
+
+  // Years that actually hold entries, plus the current and next season so a new
+  // year is always reachable before it has any prices in it.
+  const yearsWithData = Array.from(
+    new Set(priceRanges.map((r) => Number(r.dateFrom.slice(0, 4))))
+  )
+  const years = Array.from(
+    new Set([...yearsWithData, currentYear(), currentYear() + 1])
+  ).sort((a, b) => a - b)
+
+  const countForYear = (y: number) =>
+    allGroupedRanges.filter((g) => Number(g.dateFrom.slice(0, 4)) === y).length
+
+  const groupedRangesList = allGroupedRanges
+    .filter((g) => Number(g.dateFrom.slice(0, 4)) === selectedYear)
+    .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))
+
+  // Offer to copy from the most recent earlier year that has prices.
+  const sourceYear = yearsWithData
+    .filter((y) => y < selectedYear)
+    .sort((a, b) => b - a)[0]
+
+  const handleCopyYear = async () => {
+    if (!sourceYear) return
+    setCopying(true)
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch('/api/price-ranges/copy-year', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId,
+          fromYear: sourceYear,
+          toYear: selectedYear,
+          upliftPercent: parseFloat(uplift) || 0,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Αποτυχία αντιγραφής')
+        return
+      }
+      setNotice(
+        `Αντιγράφηκαν ${data.created} καταχωρήσεις από ${sourceYear} στο ${selectedYear}` +
+          (data.upliftPercent ? ` με ${data.upliftPercent > 0 ? '+' : ''}${data.upliftPercent}%.` : '.')
+      )
+      await fetchPriceRanges()
+    } catch (err) {
+      console.error('Error copying year:', err)
+      setError('Αποτυχία αντιγραφής')
+    } finally {
+      setCopying(false)
+    }
+  }
 
   // Format date range as "1-31 May 2026"
   const formatDateRange = (dateFrom: string, dateTo: string) => {
@@ -232,10 +292,72 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
         </p>
       </div>
 
+      {/* Season tabs */}
+      <div>
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {years.map((y) => (
+            <button
+              key={y}
+              onClick={() => { setSelectedYear(y); setNotice(''); setError('') }}
+              className={`shrink-0 px-3 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${
+                selectedYear === y ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>{y}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                selectedYear === y ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {countForYear(y)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+          {notice}
+        </div>
+      )}
+
+      {/* Copy last season forward — only offered when this year is still empty,
+          so it can never be used to duplicate over existing prices. */}
+      {countForYear(selectedYear) === 0 && sourceYear && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <h3 className="font-bold text-gray-900 mb-1 text-sm">
+            Αντιγραφή τιμοκαταλόγου {sourceYear} → {selectedYear}
+          </h3>
+          <p className="text-xs text-gray-600 mb-3">
+            Αντιγράφει τις ίδιες ημερομηνίες και τιμές στη νέα χρονιά, για όλα τα καταλύματα.
+            Δεν αλλάζει τίποτα από το {sourceYear}.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Αύξηση (%)</label>
+              <input
+                type="number"
+                step="0.5"
+                value={uplift}
+                onChange={(e) => setUplift(e.target.value)}
+                className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                placeholder="0"
+              />
+            </div>
+            <button
+              onClick={handleCopyYear}
+              disabled={copying}
+              className="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold text-sm disabled:opacity-50 whitespace-nowrap"
+            >
+              {copying ? 'Αντιγραφή...' : 'Αντιγραφή'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -293,13 +415,13 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
 
       {/* Existing Price Ranges - Grouped by date/price */}
       <div>
-        <h3 className="font-bold text-gray-900 mb-3">Υπάρχοντες Τιμοκατάλογοι</h3>
+        <h3 className="font-bold text-gray-900 mb-3">Τιμοκατάλογοι {selectedYear}</h3>
         <div className="space-y-3">
           {loading ? (
             <div className="text-center py-8 text-gray-600 text-sm">Φόρτωση...</div>
           ) : groupedRangesList.length === 0 ? (
             <div className="text-center py-8 text-gray-500 text-sm">
-              Δεν υπάρχουν τιμές
+              Δεν υπάρχουν τιμές για το {selectedYear}
             </div>
           ) : (
             groupedRangesList.map((group) => (

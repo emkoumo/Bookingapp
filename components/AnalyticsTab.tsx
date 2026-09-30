@@ -51,6 +51,8 @@ interface Props {
   properties: Property[]
   blockedDates: BlockedDate[]
   selectedProperty: string
+  /** Selected season. Chips and the default window stay inside it. */
+  year: number
   /** Set when the page's custom date range is on; overrides the period chips. */
   customRange: { start: string; end: string } | null
 }
@@ -85,6 +87,7 @@ export default function AnalyticsTab({
   properties,
   blockedDates,
   selectedProperty,
+  year,
   customRange,
 }: Props) {
   // 'all' is the default on purpose: the first thing you should see is the
@@ -98,7 +101,7 @@ export default function AnalyticsTab({
     (b) => b.status === 'active' && (selectedProperty === 'all' || b.property.id === selectedProperty)
   )
 
-  // Every month the data actually touches, oldest first, for the chip row.
+  // Months the data touches *within the selected season*, oldest first.
   const monthChips: Array<{ key: string; label: string; start: string; end: string }> = []
   {
     const seen = new Set<string>()
@@ -108,6 +111,7 @@ export default function AnalyticsTab({
       if (bOut - bIn <= 0) continue
       for (let d = bIn; d < bOut; d++) {
         const dt = dayToDate(d)
+        if (dt.getUTCFullYear() !== year) continue
         const key = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`
         if (seen.has(key)) continue
         seen.add(key)
@@ -339,7 +343,7 @@ export default function AnalyticsTab({
           {customRange
             ? 'Προσαρμοσμένο εύρος (από το φίλτρο πιο πάνω)'
             : period === 'all'
-              ? `Όλη η περίοδος — παρελθόν και μέλλον (${rangeStart.slice(0, 7)} έως ${rangeEnd.slice(0, 7)})`
+              ? `Σεζόν ${year} — όλη η χρονιά, παρελθόν και μέλλον (${rangeStart.slice(0, 7)} έως ${rangeEnd.slice(0, 7)})`
               : `${rangeStart} έως ${rangeEnd}`}
         </p>
       </section>
