@@ -6,7 +6,7 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'da
 import { el } from 'date-fns/locale'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import BookingMeta from '@/components/BookingMeta'
+import BookingMeta, { BookingComLogo } from '@/components/BookingMeta'
 import { isBookingCom } from '@/lib/bookingSource'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
@@ -807,8 +807,9 @@ function ReportsContent() {
                             <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="min-w-0 flex-1">
-                                  <h3 className="font-bold text-lg text-gray-900 truncate">
-                                    {booking.customerName}
+                                  <h3 className="font-bold text-lg text-gray-900 truncate flex items-center gap-2">
+                                    <span className="truncate">{booking.customerName}</span>
+                                    <BookingComLogo booking={booking} />
                                   </h3>
                                   {booking.extraBedEnabled && (
                                     <div className="pdf-text text-purple-700 text-xs font-semibold mt-0.5">
@@ -994,7 +995,10 @@ function ReportsContent() {
                               <td className="p-3 font-semibold" style={{ verticalAlign: 'middle' }}>
                                 <div className="flex items-center gap-2">
                                   <div>
-                                    <div>{booking.customerName}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span>{booking.customerName}</span>
+                                      <BookingComLogo booking={booking} size="sm" />
+                                    </div>
                                     {booking.extraBedEnabled && (
                                       <div className="pdf-text text-purple-700 text-xs font-semibold mt-1">
                                         Extra Κρεβάτι
