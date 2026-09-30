@@ -35,6 +35,9 @@ interface Booking {
   extraBedEnabled?: boolean
   extraBedPricePerNight?: number
   extraBedTotal?: number
+  source?: string
+  adults?: number | null
+  children?: number | null
   property: Property
 }
 
@@ -166,6 +169,9 @@ function CalendarContent() {
     extraBedEnabled?: boolean
     extraBedPricePerNight?: number | null
     extraBedTotal?: number | null
+    source?: string
+    adults?: number | null
+    children?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     try {
@@ -195,6 +201,9 @@ function CalendarContent() {
             extraBedEnabled: data.extraBedEnabled,
             extraBedPricePerNight: data.extraBedPricePerNight,
             extraBedTotal: data.extraBedTotal,
+            source: data.source,
+            adults: data.adults,
+            children: data.children,
           }),
         })
       })
@@ -233,6 +242,9 @@ function CalendarContent() {
     extraBedEnabled?: boolean
     extraBedPricePerNight?: number | null
     extraBedTotal?: number | null
+    source?: string
+    adults?: number | null
+    children?: number | null
   }) => {
     if (!editingBooking) return
 
@@ -257,6 +269,9 @@ function CalendarContent() {
           extraBedEnabled: data.extraBedEnabled,
           extraBedPricePerNight: data.extraBedPricePerNight,
           extraBedTotal: data.extraBedTotal,
+          source: data.source,
+          adults: data.adults,
+          children: data.children,
         }),
       })
 
@@ -424,6 +439,9 @@ function CalendarContent() {
             extraBedEnabled: editingBooking.extraBedEnabled,
             extraBedPricePerNight: editingBooking.extraBedPricePerNight,
             extraBedTotal: editingBooking.extraBedTotal,
+            source: editingBooking.source,
+            adults: editingBooking.adults,
+            children: editingBooking.children,
           }}
           isEdit={true}
           businessId={businessId || ''}

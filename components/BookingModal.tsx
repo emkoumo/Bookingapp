@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { BOOKING_COM, MANUAL, ADULT_OPTIONS, CHILD_OPTIONS } from '@/lib/bookingSource'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
@@ -42,6 +43,9 @@ interface BookingModalProps {
     extraBedTotal?: number | null
     perPropertyPrices?: { [propertyId: string]: number } // Added for multi-property bookings
     advancePaymentPerProperty?: { [propertyId: string]: number } // Split advance payment for multi-property bookings
+    source?: string
+    adults?: number | null
+    children?: number | null
   }) => void
   onDelete?: () => void
   initialData?: {
@@ -61,6 +65,9 @@ interface BookingModalProps {
     extraBedEnabled?: boolean
     extraBedPricePerNight?: number
     extraBedTotal?: number
+    source?: string
+    adults?: number | null
+    children?: number | null
   }
   isEdit?: boolean
   businessId?: string
@@ -116,6 +123,15 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     initialData?.extraBedPricePerNight ? Number(initialData.extraBedPricePerNight).toString() : '5.00'
   )
   const [extraBedTotal, setExtraBedTotal] = useState<number>(0)
+  const [isBookingCom, setIsBookingCom] = useState<boolean>(initialData?.source === BOOKING_COM)
+  // '' means "not recorded" and is preserved as null, so an untouched legacy
+  // booking is never silently asserted to have 0 guests.
+  const [adults, setAdults] = useState<string>(
+    initialData?.adults === null || initialData?.adults === undefined ? '' : String(initialData.adults)
+  )
+  const [children, setChildren] = useState<string>(
+    initialData?.children === null || initialData?.children === undefined ? '' : String(initialData.children)
+  )
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [dateConflicts, setDateConflicts] = useState<string[]>([])
   const [checkOutDisabledDates, setCheckOutDisabledDates] = useState<string[]>([])
@@ -658,7 +674,11 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       extraBedPricePerNight: extraBedEnabled ? Math.round((parseFloat(extraBedPricePerNight) || 0) * 100) / 100 : null,
       extraBedTotal: extraBedEnabled ? Math.round(extraBedTotal * 100) / 100 : null,
       perPropertyPrices: priceCalculation?.perPropertyPrices, // Include per-property prices for multi-property bookings
-      advancePaymentPerProperty // Include split advance payment for multi-property bookings
+      advancePaymentPerProperty, // Include split advance payment for multi-property bookings
+      source: isBookingCom ? BOOKING_COM : MANUAL,
+      // '' stays null rather than becoming 0, so "not recorded" is preserved.
+      adults: adults === '' ? null : Number(adults),
+      children: children === '' ? null : Number(children),
     }
 
     onSave(submissionData as any)
@@ -1527,6 +1547,54 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
               ) : null}
             </>
           )}
+
+          {/* Channel & party size */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isBookingCom}
+                  onChange={(e) => setIsBookingCom(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+              <span className="text-sm font-medium text-gray-700">Κράτηση από Booking.com</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Ενήλικες</label>
+                <select
+                  value={adults}
+                  onChange={(e) => setAdults(e.target.value)}
+                  className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white"
+                >
+                  <option value="">—</option>
+                  {ADULT_OPTIONS.map((n) => (
+                    <option key={n} value={String(n)}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Παιδιά</label>
+                <select
+                  value={children}
+                  onChange={(e) => setChildren(e.target.value)}
+                  className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white"
+                >
+                  <option value="">—</option>
+                  {CHILD_OPTIONS.map((n) => (
+                    <option key={n} value={String(n)}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Ηλικίες παιδιών, παρκοκρέβατο και άλλες λεπτομέρειες γράφονται στις Σημειώσεις.
+            </p>
+          </div>
 
           {/* Notes */}
           <div>

@@ -6,6 +6,8 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'da
 import { el } from 'date-fns/locale'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import BookingMeta from '@/components/BookingMeta'
+import { isBookingCom } from '@/lib/bookingSource'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
@@ -36,6 +38,9 @@ interface Booking {
   extraBedPricePerNight?: number
   extraBedTotal?: number
   createdAt?: string
+  source?: string
+  adults?: number | null
+  children?: number | null
   property: {
     id: string
     name: string
@@ -269,12 +274,15 @@ function ReportsContent() {
   }
 
   const exportCSV = () => {
-    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
+    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Κανάλι', 'Ενήλικες', 'Παιδιά', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
     const rows = filteredBookings.map((b) => [
       b.customerName,
       b.property.name,
       format(new Date(b.checkIn), 'dd/MM/yyyy'),
       format(new Date(b.checkOut), 'dd/MM/yyyy'),
+      isBookingCom(b) ? 'Booking.com' : 'Απευθείας',
+      b.adults ?? '',
+      b.children ?? '',
       b.contactInfo || '',
       b.totalPrice ? Number(b.totalPrice).toFixed(2) : (b.deposit || '-'),
       b.advancePayment ? Number(b.advancePayment).toFixed(2) : '-',
@@ -938,6 +946,8 @@ function ReportsContent() {
                               )}
 
                               {/* Notes */}
+                              {/* Channel + party size, replacing the old hand-typed marker */}
+                              <BookingMeta booking={booking} />
                               {booking.notes && (
                                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                   <div className="flex items-start gap-2">
@@ -1003,6 +1013,8 @@ function ReportsContent() {
                                     </span>
                                   )}
                                 </div>
+                                {/* Channel + party size, replacing the old hand-typed marker */}
+                                <BookingMeta booking={booking} />
                                 {booking.notes && (
                                   <div className="mt-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex items-start gap-1.5 font-normal">
                                     <svg className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
