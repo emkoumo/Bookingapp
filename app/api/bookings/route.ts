@@ -60,7 +60,10 @@ export async function POST(request: Request) {
       advancePaymentDate,
       extraBedEnabled,
       extraBedPricePerNight,
-      extraBedTotal
+      extraBedTotal,
+      source,
+      adults,
+      children
     } = body
 
     if (!propertyId || !customerName || !checkIn || !checkOut) {
@@ -219,7 +222,11 @@ export async function POST(request: Request) {
         extraBedEnabled: extraBedEnabled || false,
         extraBedPricePerNight: extraBedPricePerNight ?? null,
         extraBedTotal: extraBedTotal ?? null,
-        hasCustomPrice: isCustomPrice
+        hasCustomPrice: isCustomPrice,
+        source: source || 'manual',
+        // ?? so a recorded 0 survives; undefined/null stays "not recorded".
+        adults: adults ?? null,
+        children: children ?? null
       },
       include: {
         property: {

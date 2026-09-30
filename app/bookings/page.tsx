@@ -9,6 +9,7 @@ import Alert from '@/components/Alert'
 import Modal from '@/components/Modal'
 import BookingModal from '@/components/BookingModal'
 import DatePicker from '@/components/DatePicker'
+import BookingMeta, { BookingComLogo } from '@/components/BookingMeta'
 import Header from '@/components/Header'
 import { resolveYear, stayTouchesYear } from '@/lib/year'
 
@@ -35,6 +36,9 @@ interface Booking {
   extraBedEnabled?: boolean
   extraBedPricePerNight?: number
   extraBedTotal?: number
+  source?: string
+  adults?: number | null
+  children?: number | null
   property: {
     id: string
     name: string
@@ -209,6 +213,9 @@ function BookingsContent() {
     extraBedEnabled?: boolean
     extraBedPricePerNight?: number | null
     extraBedTotal?: number | null
+    source?: string
+    adults?: number | null
+    children?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     try {
@@ -250,6 +257,9 @@ function BookingsContent() {
             extraBedEnabled: data.extraBedEnabled,
             extraBedPricePerNight: data.extraBedPricePerNight,
             extraBedTotal: data.extraBedTotal,
+            source: data.source,
+            adults: data.adults,
+            children: data.children,
           }),
         })
       })
@@ -295,6 +305,9 @@ function BookingsContent() {
     extraBedEnabled?: boolean
     extraBedPricePerNight?: number | null
     extraBedTotal?: number | null
+    source?: string
+    adults?: number | null
+    children?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     if (!editingBooking) return
@@ -320,6 +333,9 @@ function BookingsContent() {
           extraBedEnabled: data.extraBedEnabled,
           extraBedPricePerNight: data.extraBedPricePerNight,
           extraBedTotal: data.extraBedTotal,
+          source: data.source,
+          adults: data.adults,
+          children: data.children,
         }),
       })
 
@@ -426,6 +442,9 @@ function BookingsContent() {
             extraBedEnabled: editingBooking.extraBedEnabled,
             extraBedPricePerNight: editingBooking.extraBedPricePerNight,
             extraBedTotal: editingBooking.extraBedTotal,
+            source: editingBooking.source,
+            adults: editingBooking.adults,
+            children: editingBooking.children,
           }}
           isEdit={true}
           businessId={businessId || ''}
@@ -621,7 +640,10 @@ function BookingsContent() {
                             <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <h3 className="font-bold text-lg text-gray-900 truncate">{booking.customerName}</h3>
+                                  <h3 className="font-bold text-lg text-gray-900 truncate flex items-center gap-2">
+                                    <span className="truncate">{booking.customerName}</span>
+                                    <BookingComLogo booking={booking} />
+                                  </h3>
                                   {booking.extraBedEnabled && (
                                     <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
@@ -774,6 +796,8 @@ function BookingsContent() {
                               )}
 
                               {/* Notes */}
+                              {/* Channel + party size, replacing the old hand-typed marker */}
+                              <BookingMeta booking={booking} />
                               {booking.notes && (
                                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                   <div className="flex items-start gap-2">
@@ -823,6 +847,7 @@ function BookingsContent() {
                               <td className="p-3 font-semibold">
                                 <div className="flex items-center gap-2">
                                   <span>{booking.customerName}</span>
+                                  <BookingComLogo booking={booking} size="sm" />
                                   {booking.extraBedEnabled && (
                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold border border-purple-300" title="Extra Κρεβάτι">
                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
@@ -835,6 +860,8 @@ function BookingsContent() {
                                     </span>
                                   )}
                                 </div>
+                                {/* Channel + party size, replacing the old hand-typed marker */}
+                                <BookingMeta booking={booking} />
                                 {booking.notes && (
                                   <div className="mt-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex items-start gap-1.5 font-normal">
                                     <svg className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

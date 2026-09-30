@@ -6,6 +6,8 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'da
 import { el } from 'date-fns/locale'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import BookingMeta, { BookingComLogo } from '@/components/BookingMeta'
+import { isBookingCom } from '@/lib/bookingSource'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
@@ -36,6 +38,9 @@ interface Booking {
   extraBedPricePerNight?: number
   extraBedTotal?: number
   createdAt?: string
+  source?: string
+  adults?: number | null
+  children?: number | null
   property: {
     id: string
     name: string
@@ -269,12 +274,15 @@ function ReportsContent() {
   }
 
   const exportCSV = () => {
-    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
+    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Κανάλι', 'Ενήλικες', 'Παιδιά', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
     const rows = filteredBookings.map((b) => [
       b.customerName,
       b.property.name,
       format(new Date(b.checkIn), 'dd/MM/yyyy'),
       format(new Date(b.checkOut), 'dd/MM/yyyy'),
+      isBookingCom(b) ? 'Booking.com' : 'Απευθείας',
+      b.adults ?? '',
+      b.children ?? '',
       b.contactInfo || '',
       b.totalPrice ? Number(b.totalPrice).toFixed(2) : (b.deposit || '-'),
       b.advancePayment ? Number(b.advancePayment).toFixed(2) : '-',
@@ -799,8 +807,9 @@ function ReportsContent() {
                             <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-4 py-3 border-b border-gray-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="min-w-0 flex-1">
-                                  <h3 className="font-bold text-lg text-gray-900 truncate">
-                                    {booking.customerName}
+                                  <h3 className="font-bold text-lg text-gray-900 truncate flex items-center gap-2">
+                                    <span className="truncate">{booking.customerName}</span>
+                                    <BookingComLogo booking={booking} />
                                   </h3>
                                   {booking.extraBedEnabled && (
                                     <div className="pdf-text text-purple-700 text-xs font-semibold mt-0.5">
@@ -938,6 +947,8 @@ function ReportsContent() {
                               )}
 
                               {/* Notes */}
+                              {/* Channel + party size, replacing the old hand-typed marker */}
+                              <BookingMeta booking={booking} />
                               {booking.notes && (
                                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                   <div className="flex items-start gap-2">
@@ -984,7 +995,10 @@ function ReportsContent() {
                               <td className="p-3 font-semibold" style={{ verticalAlign: 'middle' }}>
                                 <div className="flex items-center gap-2">
                                   <div>
-                                    <div>{booking.customerName}</div>
+                                    <div className="flex items-center gap-2">
+                                      <span>{booking.customerName}</span>
+                                      <BookingComLogo booking={booking} size="sm" />
+                                    </div>
                                     {booking.extraBedEnabled && (
                                       <div className="pdf-text text-purple-700 text-xs font-semibold mt-1">
                                         Extra Κρεβάτι
@@ -1003,6 +1017,8 @@ function ReportsContent() {
                                     </span>
                                   )}
                                 </div>
+                                {/* Channel + party size, replacing the old hand-typed marker */}
+                                <BookingMeta booking={booking} />
                                 {booking.notes && (
                                   <div className="mt-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex items-start gap-1.5 font-normal">
                                     <svg className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
