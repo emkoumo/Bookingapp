@@ -24,7 +24,7 @@ type MetaBooking = {
 }
 
 /** Booking.com brand blue. */
-const BOOKING_BLUE = '#003580'
+const BOOKING_BLUE = '#003b95'
 
 /**
  * Square "B" mark, shown beside the name. Renders nothing for a direct booking,
