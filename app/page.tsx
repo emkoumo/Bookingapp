@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
+import { resolveYear } from '@/lib/year'
 
 export default function Home() {
   const [selectedBusiness, setSelectedBusiness] = useState<string>('')
@@ -26,7 +27,9 @@ export default function Home() {
       setToast({ message: 'Παρακαλώ επιλέξτε επιχείρηση από το μενού πάνω δεξιά', type: 'warning' })
       return
     }
-    router.push(`${path}?business=${business}`)
+    // Carry the season through, so every page opens on the same year.
+    const year = resolveYear(null)
+    router.push(`${path}?business=${business}&year=${year}`)
   }
 
   if (loading) {

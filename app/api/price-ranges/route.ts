@@ -93,8 +93,12 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Recompute all bookings on this property so every page reflects the new price list.
-    await recalculateBookingsForProperty(propertyId)
+    // Only bookings with nights inside the new range can be affected, so scope
+    // the recalculation to it — another season is never touched.
+    await recalculateBookingsForProperty(propertyId, {
+      from: dateFromParsed,
+      to: dateToParsed,
+    })
 
     return NextResponse.json(priceRange, { status: 201 })
   } catch (error) {
@@ -181,8 +185,12 @@ export async function PUT(request: NextRequest) {
       }
     })
 
-    // Recompute all bookings on this property so every page reflects the new price list.
-    await recalculateBookingsForProperty(existing.propertyId)
+    // The range may have moved, so cover both where it was and where it now is.
+    // Bookings outside that union cannot be affected by this edit.
+    await recalculateBookingsForProperty(existing.propertyId, {
+      from: existing.dateFrom < dateFromParsed ? existing.dateFrom : dateFromParsed,
+      to: existing.dateTo > dateToParsed ? existing.dateTo : dateToParsed,
+    })
 
     return NextResponse.json(priceRange)
   } catch (error) {
@@ -215,7 +223,10 @@ export async function DELETE(request: NextRequest) {
     })
 
     if (existing) {
-      await recalculateBookingsForProperty(existing.propertyId)
+      await recalculateBookingsForProperty(existing.propertyId, {
+        from: existing.dateFrom,
+        to: existing.dateTo,
+      })
     }
 
     return NextResponse.json({ success: true })

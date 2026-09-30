@@ -10,6 +10,7 @@ import Modal from '@/components/Modal'
 import BookingModal from '@/components/BookingModal'
 import DatePicker from '@/components/DatePicker'
 import Header from '@/components/Header'
+import { resolveYear, stayTouchesYear } from '@/lib/year'
 
 interface Property {
   id: string
@@ -44,6 +45,7 @@ function BookingsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const businessId = searchParams.get('business')
+  const year = resolveYear(searchParams.get('year'))
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [properties, setProperties] = useState<Property[]>([])
@@ -90,6 +92,12 @@ function BookingsContent() {
   const filteredBookings = bookings.filter((booking) => {
     // Only show active bookings
     if (booking.status !== 'active') {
+      return false
+    }
+
+    // Season scope. Nothing is deleted when the year rolls over — switching the
+    // selector back brings the old season straight back.
+    if (!stayTouchesYear(booking.checkIn, booking.checkOut, year)) {
       return false
     }
 
