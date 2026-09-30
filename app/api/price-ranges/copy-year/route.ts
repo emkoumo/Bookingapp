@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
     // Once per property, not once per row.
     const touched = Array.from(new Set(rows.map((r) => r.propertyId)))
     for (const propertyId of touched) {
-      await recalculateBookingsForProperty(propertyId)
+      // Scoped to the season we just created, so bookings in any other year are
+      // not even fetched, let alone rewritten.
+      await recalculateBookingsForProperty(propertyId, { from: targetStart, to: targetEnd })
     }
 
     return NextResponse.json(

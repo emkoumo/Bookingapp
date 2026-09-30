@@ -19,10 +19,31 @@ import { prisma } from './prisma'
  *  - extraBedTotal is preserved and added back into totalPrice.
  *  - remainingBalance is updated to (new total − advancePayment).
  *  - If the new total equals what's already saved, no DB write happens.
+ *
+ * `window` narrows the work to bookings whose nights actually fall inside the
+ * period that changed. Callers pass the affected PriceRange's span, so editing
+ * a 2026 price can only ever touch bookings with 2026 nights — a booking in
+ * another season is not fetched at all, and so cannot be rewritten even if its
+ * stored total happens to disagree with the price list. Omit it only to
+ * deliberately re-evaluate every season.
+ *
+ * Price ranges are always loaded in full, never windowed: a single stay can
+ * span several ranges, and every night of it must still be priced correctly.
  */
-export async function recalculateBookingsForProperty(propertyId: string) {
+export async function recalculateBookingsForProperty(
+  propertyId: string,
+  window?: { from: Date; to: Date }
+) {
   const [bookings, ranges] = await Promise.all([
-    prisma.booking.findMany({ where: { propertyId, hasCustomPrice: false } }),
+    prisma.booking.findMany({
+      where: {
+        propertyId,
+        hasCustomPrice: false,
+        // Nights are [checkIn, checkOut), so a stay overlaps the window when it
+        // starts on or before the window ends and checks out after it begins.
+        ...(window ? { checkIn: { lte: window.to }, checkOut: { gt: window.from } } : {}),
+      },
+    }),
     prisma.priceRange.findMany({ where: { propertyId } }),
   ])
 

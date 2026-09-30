@@ -13,7 +13,7 @@
 export const YEAR_STORAGE_KEY = 'selectedYear'
 
 /** Earliest season the app has data for; nothing before this is offered. */
-const FIRST_SEASON = 2025
+const FIRST_SEASON = 2026
 
 export function currentYear(): number {
   return new Date().getFullYear()
