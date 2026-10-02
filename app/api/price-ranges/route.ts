@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { recalculateBookingsForProperty } from '@/lib/recalculateBookings'
+
+/**
+ * Booking price is optional. An empty field clears it (null) rather than
+ * storing 0, which would read as "free on Booking" instead of "not set".
+ */
+function parseBookingPrice(raw: unknown): number | null | 'invalid' {
+  if (raw === undefined || raw === null || raw === '') return null
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw))
+  if (!Number.isFinite(n) || n <= 0) return 'invalid'
+  return n
+}
 
 // GET - Fetch all price ranges for a property
 export async function GET(request: NextRequest) {
@@ -34,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { propertyId, dateFrom, dateTo, pricePerNight } = body
+    const { propertyId, dateFrom, dateTo, pricePerNight, bookingPrice } = body
 
     // Validation
     if (!propertyId || !dateFrom || !dateTo || !pricePerNight) {
@@ -64,6 +74,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Booking price is optional, but must be a real price when given.
+    const bookingPriceValue = parseBookingPrice(bookingPrice)
+    if (bookingPriceValue === 'invalid') {
+      return NextResponse.json(
+        { error: 'Η τιμή Booking πρέπει να είναι μεγαλύτερη από 0' },
+        { status: 400 }
+      )
+    }
+
     // Check for overlapping date ranges
     // Two ranges overlap if: (Start1 <= End2) AND (End1 >= Start2)
     const hasOverlap = await prisma.priceRange.findFirst({
@@ -89,15 +108,9 @@ export async function POST(request: NextRequest) {
         propertyId,
         dateFrom: dateFromParsed,
         dateTo: dateToParsed,
-        pricePerNight: parseFloat(pricePerNight)
+        pricePerNight: parseFloat(pricePerNight),
+        bookingPrice: bookingPriceValue
       }
-    })
-
-    // Only bookings with nights inside the new range can be affected, so scope
-    // the recalculation to it — another season is never touched.
-    await recalculateBookingsForProperty(propertyId, {
-      from: dateFromParsed,
-      to: dateToParsed,
     })
 
     return NextResponse.json(priceRange, { status: 201 })
@@ -114,7 +127,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, dateFrom, dateTo, pricePerNight } = body
+    const { id, dateFrom, dateTo, pricePerNight, bookingPrice } = body
 
     // Validation
     if (!id || !dateFrom || !dateTo || !pricePerNight) {
@@ -140,6 +153,14 @@ export async function PUT(request: NextRequest) {
     if (parseFloat(pricePerNight) <= 0) {
       return NextResponse.json(
         { error: 'Η τιμή πρέπει να είναι μεγαλύτερη από 0' },
+        { status: 400 }
+      )
+    }
+
+    const bookingPriceValue = parseBookingPrice(bookingPrice)
+    if (bookingPriceValue === 'invalid') {
+      return NextResponse.json(
+        { error: 'Η τιμή Booking πρέπει να είναι μεγαλύτερη από 0' },
         { status: 400 }
       )
     }
@@ -181,15 +202,9 @@ export async function PUT(request: NextRequest) {
       data: {
         dateFrom: dateFromParsed,
         dateTo: dateToParsed,
-        pricePerNight: parseFloat(pricePerNight)
+        pricePerNight: parseFloat(pricePerNight),
+        bookingPrice: bookingPriceValue
       }
-    })
-
-    // The range may have moved, so cover both where it was and where it now is.
-    // Bookings outside that union cannot be affected by this edit.
-    await recalculateBookingsForProperty(existing.propertyId, {
-      from: existing.dateFrom < dateFromParsed ? existing.dateFrom : dateFromParsed,
-      to: existing.dateTo > dateToParsed ? existing.dateTo : dateToParsed,
     })
 
     return NextResponse.json(priceRange)
@@ -221,13 +236,6 @@ export async function DELETE(request: NextRequest) {
     await prisma.priceRange.delete({
       where: { id }
     })
-
-    if (existing) {
-      await recalculateBookingsForProperty(existing.propertyId, {
-        from: existing.dateFrom,
-        to: existing.dateTo,
-      })
-    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { recalculateBookingsForProperty } from '@/lib/recalculateBookings'
 
 /**
  * Copy a season's price list forward into the next year, optionally with a
@@ -14,9 +13,9 @@ import { recalculateBookingsForProperty } from '@/lib/recalculateBookings'
  *    tripping the overlap guard halfway through.
  *  - Creates run in one transaction, so a partial copy cannot be left behind.
  *
- * Recalculation runs once per property afterwards (not once per created row),
- * and bookings carrying hasCustomPrice are skipped by that function, so
- * manually-priced bookings in the target year are untouched.
+ * Nothing is recalculated afterwards: a reservation keeps the price it was
+ * created with, for good. Copying a season forward only affects reservations
+ * made from then on.
  */
 
 /** Last day of a month, 1-indexed month. */
@@ -111,13 +110,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.$transaction(rows.map((data) => prisma.priceRange.create({ data })))
 
-    // Once per property, not once per row.
     const touched = Array.from(new Set(rows.map((r) => r.propertyId)))
-    for (const propertyId of touched) {
-      // Scoped to the season we just created, so bookings in any other year are
-      // not even fetched, let alone rewritten.
-      await recalculateBookingsForProperty(propertyId, { from: targetStart, to: targetEnd })
-    }
 
     return NextResponse.json(
       { created: rows.length, fromYear: from, toYear: to, upliftPercent: uplift, properties: touched.length },

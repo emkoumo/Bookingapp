@@ -108,8 +108,20 @@ model PriceRange {
   id            String   @id @default(uuid())
   propertyId    String
   dateFrom      DateTime @db.Date
+  // dateTo is the LAST NIGHT of the range, not a check-out day:
+  // 13–15 Aug is three nights (13th, 14th, 15th).
   dateTo        DateTime @db.Date
+  // "Απευθείας κράτηση" — the rounded price quoted by phone or message, used
+  // for every channel except Booking. Required.
+  //
+  // Kept under its original name rather than renamed to directPrice: the 74
+  // existing rows already hold exactly this value, so leaving the column alone
+  // means the Direct price needs no migration at all.
   pricePerNight Decimal  @db.Decimal(10, 2)
+  // "Κράτηση Booking" — the nightly price set in Booking's Extranet, before the
+  // climate fee. Optional: when a stay's nights have no Booking price, the
+  // Booking channel cannot be priced and says so rather than falling back.
+  bookingPrice  Decimal? @db.Decimal(10, 2)
   property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
