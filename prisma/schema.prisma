@@ -122,6 +122,9 @@ model PriceRange {
   // climate fee. Optional: when a stay's nights have no Booking price, the
   // Booking channel cannot be priced and says so rather than falling back.
   bookingPrice  Decimal? @db.Decimal(10, 2)
+  // Optional period label ("Κορύφωση", "Πάσχα 2027"), used in the price
+  // overview and the quote breakdown. Existing ranges stay unnamed.
+  name          String?
   property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

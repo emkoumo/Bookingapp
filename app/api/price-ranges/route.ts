@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { propertyId, dateFrom, dateTo, pricePerNight, bookingPrice } = body
+    const { propertyId, dateFrom, dateTo, pricePerNight, bookingPrice, name } = body
 
     // Validation
     if (!propertyId || !dateFrom || !dateTo || !pricePerNight) {
@@ -109,7 +109,8 @@ export async function POST(request: NextRequest) {
         dateFrom: dateFromParsed,
         dateTo: dateToParsed,
         pricePerNight: parseFloat(pricePerNight),
-        bookingPrice: bookingPriceValue
+        bookingPrice: bookingPriceValue,
+        name: typeof name === 'string' && name.trim() !== '' ? name.trim() : null
       }
     })
 
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, dateFrom, dateTo, pricePerNight, bookingPrice } = body
+    const { id, dateFrom, dateTo, pricePerNight, bookingPrice, name } = body
 
     // Validation
     if (!id || !dateFrom || !dateTo || !pricePerNight) {
@@ -203,7 +204,8 @@ export async function PUT(request: NextRequest) {
         dateFrom: dateFromParsed,
         dateTo: dateToParsed,
         pricePerNight: parseFloat(pricePerNight),
-        bookingPrice: bookingPriceValue
+        bookingPrice: bookingPriceValue,
+        name: typeof name === 'string' && name.trim() !== '' ? name.trim() : null
       }
     })
 
