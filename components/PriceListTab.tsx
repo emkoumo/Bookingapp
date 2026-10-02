@@ -17,6 +17,8 @@ interface PriceRange {
   dateFrom: string
   dateTo: string
   pricePerNight: number
+  bookingPrice: number | null
+  name: string | null
   createdAt: string
   updatedAt: string
 }
@@ -33,7 +35,9 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
   const [formData, setFormData] = useState({
     dateFrom: '',
     dateTo: '',
-    pricePerNight: ''
+    pricePerNight: '',
+    bookingPrice: '',
+    name: ''
   })
   const [error, setError] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear())
@@ -94,7 +98,9 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
             propertyId: property.id,
             dateFrom: formData.dateFrom,
             dateTo: formData.dateTo,
-            pricePerNight: parseFloat(formData.pricePerNight)
+            pricePerNight: parseFloat(formData.pricePerNight),
+            bookingPrice: formData.bookingPrice === '' ? null : parseFloat(formData.bookingPrice),
+            name: formData.name
           })
         })
 
@@ -113,7 +119,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
       }
 
       fetchPriceRanges()
-      setFormData({ dateFrom: '', dateTo: '', pricePerNight: '' })
+      setFormData({ dateFrom: '', dateTo: '', pricePerNight: '', bookingPrice: '', name: '' })
       setError('')
     } catch (error) {
       console.error('Error adding price range:', error)
@@ -140,6 +146,8 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
           dateFrom: dateOnly(range.dateFrom),
           dateTo: dateOnly(range.dateTo),
           pricePerNight: range.pricePerNight,
+          bookingPrice: range.bookingPrice,
+          name: range.name,
         })
       })
 
@@ -181,12 +189,14 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
 
   // Group price ranges by date range and price
   const groupedRanges = priceRanges.reduce((acc, range) => {
-    const key = `${range.dateFrom}-${range.dateTo}-${range.pricePerNight}`
+    const key = `${range.dateFrom}-${range.dateTo}-${range.pricePerNight}-${range.bookingPrice ?? 'x'}-${range.name ?? ''}`
     if (!acc[key]) {
       acc[key] = {
         dateFrom: range.dateFrom,
         dateTo: range.dateTo,
         pricePerNight: range.pricePerNight,
+        bookingPrice: range.bookingPrice,
+        name: range.name,
         ranges: []
       }
     }
@@ -196,6 +206,8 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     dateFrom: string
     dateTo: string
     pricePerNight: number
+    bookingPrice: number | null
+    name: string | null
     ranges: PriceRange[]
   }>)
 
@@ -364,6 +376,18 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <h3 className="font-bold text-gray-900 mb-3 text-sm">Προσθήκη Νέου Εύρους Τιμών</h3>
 
+        {/* Optional period label */}
+        <div className="mb-3">
+          <label className="block text-sm font-bold text-gray-700 mb-2">Όνομα περιόδου</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+            placeholder="π.χ. Κορύφωση (προαιρετικό)"
+          />
+        </div>
+
         {/* Dates - Using DatePicker Component */}
         <div>
           <div className="grid grid-cols-2 gap-3 mb-2">
@@ -390,18 +414,34 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
           </div>
         </div>
 
-        {/* Price Input */}
-        <div className="mb-3">
-          <label className="block text-sm font-bold text-gray-700 mb-2">Τιμή/Νύχτα (€) *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.pricePerNight}
-            onChange={(e) => setFormData({ ...formData, pricePerNight: e.target.value })}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-            placeholder="0.00"
-          />
+        {/* Prices: one per channel */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Απευθείας κράτηση (€) *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.pricePerNight}
+              onChange={(e) => setFormData({ ...formData, pricePerNight: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              placeholder="0.00"
+            />
+            <p className="text-xs text-gray-500 mt-1">Η τιμή που λέτε σε τηλέφωνο ή μήνυμα.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Κράτηση Booking (€)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.bookingPrice}
+              onChange={(e) => setFormData({ ...formData, bookingPrice: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              placeholder="προαιρετικό"
+            />
+            <p className="text-xs text-gray-500 mt-1">Η τιμή του Extranet, χωρίς το τέλος.</p>
+          </div>
         </div>
 
         <button
@@ -427,7 +467,23 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
               <div key={group.key} className="bg-white border border-gray-200 rounded-xl p-4">
                 {editing === group.key ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Όνομα περιόδου</label>
+                      <input
+                        type="text"
+                        value={group.name ?? ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          const next = raw.trim() === '' ? null : raw
+                          setPriceRanges(priceRanges.map(r =>
+                            group.ranges.some(gr => gr.id === r.id) ? { ...r, name: next } : r
+                          ))
+                        }}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                        placeholder="προαιρετικό"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Από</label>
                         <input
@@ -459,7 +515,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">Τιμή/Νύχτα (€)</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Απευθείας (€)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -473,6 +529,25 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                             ))
                           }}
                           className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Booking (€)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={group.bookingPrice === null ? '' : Number(group.bookingPrice)}
+                          onChange={(e) => {
+                            // Empty clears it back to null rather than storing 0.
+                            const raw = e.target.value
+                            const next = raw === '' ? null : parseFloat(raw)
+                            setPriceRanges(priceRanges.map(r =>
+                              group.ranges.some(gr => gr.id === r.id) ? { ...r, bookingPrice: next } : r
+                            ))
+                          }}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          placeholder="—"
                         />
                       </div>
                     </div>
@@ -506,10 +581,38 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                   <div>
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-bold text-gray-900">
-                          {formatDateRange(group.dateFrom, group.dateTo)}
-                        </p>
-                        <p className="text-2xl font-bold text-blue-600">€{Number(group.pricePerNight).toFixed(2)}<span className="text-sm text-gray-600">/νύχτα</span></p>
+                        {group.name ? (
+                          <>
+                            <p className="font-bold text-gray-900">{group.name}</p>
+                            <p className="text-xs text-gray-600">
+                              {formatDateRange(group.dateFrom, group.dateTo)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="font-bold text-gray-900">
+                            {formatDateRange(group.dateFrom, group.dateTo)}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-end gap-x-5 gap-y-1 mt-1">
+                          <div>
+                            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Απευθείας</div>
+                            <div className="text-2xl font-bold text-blue-600 leading-tight">
+                              €{Number(group.pricePerNight).toFixed(2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Booking</div>
+                            {group.bookingPrice === null ? (
+                              <div className="text-sm font-semibold text-amber-700 leading-tight py-1.5">
+                                δεν έχει οριστεί
+                              </div>
+                            ) : (
+                              <div className="text-2xl font-bold text-gray-800 leading-tight">
+                                €{Number(group.bookingPrice).toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">Εφαρμόζεται σε όλα τα καταλύματα</p>
                       </div>
                       <div className="flex gap-1">
