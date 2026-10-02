@@ -97,6 +97,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     nightsCount?: number
     missingDates?: string[]
     breakdown?: Array<{ date: string; price: number }>
+    allNights?: string[]
     perPropertyPrices?: { [propertyId: string]: number } // Added for multi-property bookings
   } | null>(
     // Initialize from existing data if editing
@@ -597,6 +598,16 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   }
 
   // Helper function to group consecutive dates by price
+  // Nights the price list cannot cover for the chosen channel. A price typed
+  // in for one of these counts as covering it, so a reservation can still be
+  // taken when the Booking price simply has not been set yet.
+  const missingNights: string[] = priceCalculation?.missingDates ?? []
+  const missingNightsCovered = missingNights.every((d) => {
+    const typed = customPrices[d]
+    return typed !== undefined && typed !== '' && Number(typed) > 0
+  })
+  const allNightsPriced = Boolean(priceCalculation?.success) || (missingNights.length > 0 && missingNightsCovered)
+
   const groupByPrice = (breakdown: Array<{ date: string; price: number }>) => {
     const groups: Array<{
       price: number
@@ -663,8 +674,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       return
     }
 
-    // Check if booking is blocked due to missing prices
-    if (priceCalculation && !priceCalculation.success) {
+    // Missing list prices no longer block the save, provided every uncovered
+    // night has a price typed in — that is the custom-price route.
+    if (priceCalculation && !priceCalculation.success && !missingNightsCovered) {
       alert(isBookingCom
         ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες. Προσθέστε την στον τιμοκατάλογο — δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
         : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες. Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.')
@@ -705,12 +717,20 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       // The per-night snapshot the user actually saw: the price-list breakdown
       // for this channel, with any hand-typed night marked manual. The server
       // derives income, guest paid and the commission snapshot from it.
-      nightlyPrices: (priceCalculation?.breakdown ?? []).map((n) => {
-        const typed = customPrices[n.date]
-        return typed === undefined || typed === ''
-          ? { date: n.date, price: n.price }
-          : { date: n.date, price: Number(typed), manual: true }
-      }),
+      nightlyPrices: (() => {
+        const listed = new Map((priceCalculation?.breakdown ?? []).map((n) => [n.date, n.price]))
+        const nights = priceCalculation?.allNights ?? [...listed.keys()]
+        return nights
+          .map((date) => {
+            const typed = customPrices[date]
+            if (typed !== undefined && typed !== '') return { date, price: Number(typed), manual: true }
+            const fromList = listed.get(date)
+            // A night with neither a list price nor a typed one is dropped
+            // rather than guessed; the submit gate prevents that happening.
+            return fromList === undefined ? null : { date, price: fromList }
+          })
+          .filter((n): n is { date: string; price: number; manual?: boolean } => n !== null)
+      })(),
       // Only meaningful on the Booking channel; '' stays null.
       incomeOverride: isBookingCom && incomeOverride !== '' ? Number(incomeOverride) : null,
       // '' stays null rather than becoming 0, so "not recorded" is preserved.
@@ -1261,17 +1281,55 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 </>
               ) : priceCalculation && !priceCalculation.success && priceCalculation.missingDates && priceCalculation.missingDates.length > 0 ? (
                 /* Error: Missing Prices */
-                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 font-bold mb-1">
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
+                  <p className="text-amber-900 font-bold mb-1">
                     {isBookingCom
                       ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
-                      : '❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!'}
+                      : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες'}
                   </p>
-                  <p className="text-sm text-red-600">
+                  <p className="text-xs text-amber-800 mb-3">
                     {isBookingCom
-                      ? 'Προσθέστε τιμή «Κράτηση Booking» στον τιμοκατάλογο για αυτές τις ημερομηνίες. Δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
-                      : 'Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.'}
+                      ? 'Δεν χρησιμοποιείται η τιμή απευθείας κράτησης. Ορίστε τιμή στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'
+                      : 'Ορίστε τιμές στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'}
                   </p>
+
+                  {/* Hand-typed prices for the uncovered nights, so a reservation
+                      can still be taken before the price list is filled in. */}
+                  <div className="space-y-2">
+                    {(priceCalculation.missingDates ?? []).map((date) => (
+                      <div key={date} className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-gray-800">
+                          {format(parseISO(date), 'd MMM yyyy', { locale: el })}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={customPrices[date] === undefined ? '' : customPrices[date]}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setCustomPrices((prev) => {
+                                const next = { ...prev }
+                                if (raw === '') delete next[date]
+                                else next[date] = parseFloat(raw)
+                                return next
+                              })
+                            }}
+                            className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                            placeholder="0.00"
+                          />
+                          <span className="text-sm text-gray-600">€</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {missingNightsCovered && (
+                    <p className="mt-3 text-xs font-semibold text-green-700">
+                      Όλες οι ημερομηνίες έχουν τιμή — η κράτηση μπορεί να αποθηκευτεί.
+                    </p>
+                  )}
                 </div>
               ) : null}
             </>
@@ -1635,22 +1693,55 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 </>
               ) : priceCalculation && !priceCalculation.success && priceCalculation.missingDates && priceCalculation.missingDates.length > 0 ? (
                 /* Error: Missing Prices */
-                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                  <p className="text-red-800 font-bold mb-1">
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
+                  <p className="text-amber-900 font-bold mb-1">
                     {isBookingCom
                       ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
-                      : '❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!'}
+                      : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες'}
                   </p>
-                  <p className="text-sm text-red-600 mb-2">
+                  <p className="text-xs text-amber-800 mb-3">
                     {isBookingCom
-                      ? 'Προσθέστε τιμή «Κράτηση Booking» στον τιμοκατάλογο για αυτές τις ημερομηνίες. Δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
-                      : 'Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.'}
+                      ? 'Δεν χρησιμοποιείται η τιμή απευθείας κράτησης. Ορίστε τιμή στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'
+                      : 'Ορίστε τιμές στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'}
                   </p>
-                  <ul className="text-xs text-red-600 list-disc list-inside">
-                    {priceCalculation.missingDates.map((date, idx) => (
-                      <li key={idx}>{date}</li>
+
+                  {/* Hand-typed prices for the uncovered nights, so a reservation
+                      can still be taken before the price list is filled in. */}
+                  <div className="space-y-2">
+                    {(priceCalculation.missingDates ?? []).map((date) => (
+                      <div key={date} className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-gray-800">
+                          {format(parseISO(date), 'd MMM yyyy', { locale: el })}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={customPrices[date] === undefined ? '' : customPrices[date]}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setCustomPrices((prev) => {
+                                const next = { ...prev }
+                                if (raw === '') delete next[date]
+                                else next[date] = parseFloat(raw)
+                                return next
+                              })
+                            }}
+                            className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                            placeholder="0.00"
+                          />
+                          <span className="text-sm text-gray-600">€</span>
+                        </div>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
+
+                  {missingNightsCovered && (
+                    <p className="mt-3 text-xs font-semibold text-green-700">
+                      Όλες οι ημερομηνίες έχουν τιμή — η κράτηση μπορεί να αποθηκευτεί.
+                    </p>
+                  )}
                 </div>
               ) : null}
             </>
