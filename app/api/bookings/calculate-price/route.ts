@@ -101,13 +101,22 @@ export async function POST(request: NextRequest) {
       gross += price
     }
 
+    const allNights = dates.map((d) => format(d, 'yyyy-MM-dd'))
+
     if (missingDates.length > 0) {
+      // Deliberately NOT an early bail: breakdown and allNights come back too,
+      // so the caller can collect a price by hand for the uncovered nights
+      // rather than being blocked. Nothing is substituted from the other
+      // channel's column.
       return NextResponse.json({
         success: false,
         channel: booking ? CHANNEL_BOOKING : 'manual',
         missingDates,
         // Named distinctly so the modal can say WHICH price is missing.
         missingReason: booking ? 'booking_price' : 'direct_price',
+        breakdown,
+        allNights,
+        nightsCount: dates.length,
         message: booking
           ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
           : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες',
@@ -126,6 +135,7 @@ export async function POST(request: NextRequest) {
       totalPrice: Math.round(gross * 100) / 100,
       nightsCount: dates.length,
       breakdown,
+      allNights,
       income,
       guestPaid,
       climateFee,
