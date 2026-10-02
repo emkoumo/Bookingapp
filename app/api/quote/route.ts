@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Availability + price quote for a date range, across EVERY property in the app.
+ * Availability + price quote for a date range, for one business's properties.
  *
  * Read-only: four finds and some arithmetic. It writes nothing, so it can never
  * affect a reservation or a price.
  *
- * Unlike every other page, this one deliberately ignores the business scope —
- * when someone rings up asking "do you have anything for these dates", the
- * answer spans the villas and the apartments at once.
- *
- *   GET /api/quote?checkIn=2027-07-12&checkOut=2027-07-17
+ *   GET /api/quote?businessId=...&checkIn=2027-07-12&checkOut=2027-07-17
  *
  * checkOut is exclusive, matching reservations: 12 → 17 July is 5 nights
  * (12,13,14,15,16). Price ranges store their last night inclusively, which is
@@ -39,11 +35,12 @@ type Segment = {
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams
+    const businessId = sp.get('businessId')
     const checkIn = sp.get('checkIn')
     const checkOut = sp.get('checkOut')
 
-    if (!checkIn || !checkOut) {
-      return NextResponse.json({ error: 'checkIn και checkOut απαιτούνται' }, { status: 400 })
+    if (!businessId || !checkIn || !checkOut) {
+      return NextResponse.json({ error: 'businessId, checkIn και checkOut απαιτούνται' }, { status: 400 })
     }
 
     const first = toDay(checkIn)
@@ -60,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     const [properties, bookings, blocked, ranges] = await Promise.all([
       prisma.property.findMany({
+        where: { businessId },
         include: { business: { select: { id: true, name: true } } },
         orderBy: { name: 'asc' },
       }),
@@ -68,6 +66,7 @@ export async function GET(request: NextRequest) {
       prisma.booking.findMany({
         where: {
           status: 'active',
+          property: { businessId },
           checkIn: { lt: windowEndExclusive },
           checkOut: { gt: windowStart },
         },
@@ -75,11 +74,19 @@ export async function GET(request: NextRequest) {
       }),
       // BlockedDate stores startDate..endDate inclusive.
       prisma.blockedDate.findMany({
-        where: { startDate: { lte: new Date(lastNight * 86400000) }, endDate: { gte: windowStart } },
+        where: {
+          property: { businessId },
+          startDate: { lte: new Date(lastNight * 86400000) },
+          endDate: { gte: windowStart },
+        },
         select: { propertyId: true, startDate: true, endDate: true, reason: true },
       }),
       prisma.priceRange.findMany({
-        where: { dateFrom: { lte: new Date(lastNight * 86400000) }, dateTo: { gte: windowStart } },
+        where: {
+          property: { businessId },
+          dateFrom: { lte: new Date(lastNight * 86400000) },
+          dateTo: { gte: windowStart },
+        },
         select: { propertyId: true, dateFrom: true, dateTo: true, pricePerNight: true },
       }),
     ])

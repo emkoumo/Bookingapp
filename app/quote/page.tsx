@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { format, parseISO } from 'date-fns'
 import { el } from 'date-fns/locale'
 import Header from '@/components/Header'
@@ -9,12 +9,12 @@ import DatePicker from '@/components/DatePicker'
 import Toast from '@/components/Toast'
 
 /**
- * Γρήγορη Προσφορά — availability and price for a date range, across every
- * property in the app.
+ * Γρήγορη Προσφορά — availability and price for a date range, for the
+ * selected business's properties.
  *
  * Built for answering a phone call: pick two dates, read the number out loud.
- * Deliberately not business-scoped, because the caller asks "have you got
- * anything", not "have you got a villa".
+ * Scoped to the selected business, like every other page — each company is
+ * quoted separately.
  *
  * Read-only throughout; it only calls GET /api/quote.
  */
@@ -59,6 +59,8 @@ const shortDate = (iso: string) => format(parseISO(iso), 'd MMM', { locale: el }
 
 function QuoteContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const businessId = searchParams.get('business')
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -67,7 +69,7 @@ function QuoteContent() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
 
   useEffect(() => {
-    if (!checkIn || !checkOut) {
+    if (!businessId || !checkIn || !checkOut) {
       setQuote(null)
       return
     }
@@ -76,7 +78,7 @@ function QuoteContent() {
       setLoading(true)
       setError('')
       try {
-        const res = await fetch(`/api/quote?checkIn=${checkIn}&checkOut=${checkOut}`)
+        const res = await fetch(`/api/quote?businessId=${businessId}&checkIn=${checkIn}&checkOut=${checkOut}`)
         const data = await res.json()
         if (cancelled) return
         if (!res.ok) {
@@ -95,7 +97,7 @@ function QuoteContent() {
     return () => {
       cancelled = true
     }
-  }, [checkIn, checkOut])
+  }, [businessId, checkIn, checkOut])
 
   const copyLine = async (p: QuoteProperty) => {
     if (p.total === null || !quote) return
@@ -113,16 +115,6 @@ function QuoteContent() {
 
   const available = quote?.properties.filter((p) => p.available) ?? []
   const taken = quote?.properties.filter((p) => !p.available) ?? []
-
-  // Group by business so villas and apartments read as separate blocks.
-  const byBusiness = (list: QuoteProperty[]) => {
-    const groups = new Map<string, QuoteProperty[]>()
-    for (const p of list) {
-      if (!groups.has(p.businessName)) groups.set(p.businessName, [])
-      groups.get(p.businessName)!.push(p)
-    }
-    return [...groups.entries()]
-  }
 
   return (
     <>
@@ -175,7 +167,11 @@ function QuoteContent() {
 
             {/* Results */}
             <div className="px-4 py-4">
-              {!checkIn || !checkOut ? (
+              {!businessId ? (
+                <p className="py-10 text-center text-sm text-gray-500">
+                  Επιλέξτε επιχείρηση από το μενού πάνω δεξιά.
+                </p>
+              ) : !checkIn || !checkOut ? (
                 <p className="py-10 text-center text-sm text-gray-500">
                   Επιλέξτε ημερομηνίες για να δείτε διαθεσιμότητα και τιμές.
                 </p>
@@ -202,11 +198,9 @@ function QuoteContent() {
                       Δεν υπάρχει διαθέσιμο κατάλυμα για αυτές τις ημερομηνίες.
                     </div>
                   ) : (
-                    byBusiness(available).map(([business, list]) => (
-                      <div key={business} className="mb-5">
-                        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{business}</h2>
+                    <div className="mb-5">
                         <div className="space-y-2">
-                          {list.map((p) => (
+                          {available.map((p) => (
                             <div key={p.id} className="border border-gray-200 rounded-xl overflow-hidden">
                               <div className="flex items-center justify-between px-4 py-3">
                                 <div className="min-w-0">
@@ -266,7 +260,6 @@ function QuoteContent() {
                           ))}
                         </div>
                       </div>
-                    ))
                   )}
 
                   {/* Unavailable */}
@@ -280,7 +273,6 @@ function QuoteContent() {
                           <div key={p.id} className="flex items-start justify-between gap-3 px-3 py-2 bg-gray-50 rounded-lg">
                             <div className="min-w-0">
                               <span className="text-sm font-semibold text-gray-700">{p.name}</span>
-                              <span className="text-xs text-gray-400 ml-2">{p.businessName.split(' ')[0]}</span>
                             </div>
                             <div className="text-right text-xs text-gray-500 min-w-0">
                               {p.conflicts.slice(0, 2).map((c, i) => (

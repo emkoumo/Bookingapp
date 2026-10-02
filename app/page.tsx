@@ -58,9 +58,9 @@ export default function Home() {
           </div>
 
           {/* Quick quote — first thing you reach for when the phone rings, so it
-              sits above the rest and spans the width. Not business-scoped. */}
+              sits above the rest and spans the width. */}
           <button
-            onClick={() => router.push('/quote')}
+            onClick={() => navigateTo('/quote')}
             className="w-full mb-3 md:mb-6 group bg-white hover:bg-gradient-to-br hover:from-teal-50 hover:to-teal-100 border-2 border-gray-200 hover:border-teal-400 p-4 md:p-6 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 flex items-center gap-4"
           >
             <svg className="w-10 h-10 md:w-12 md:h-12 text-gray-400 group-hover:text-teal-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
