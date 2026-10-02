@@ -30,6 +30,8 @@ type Segment = {
   nights: number
   pricePerNight: number
   subtotal: number
+  /** Period label, when the covering range has one. */
+  name: string | null
 }
 
 export async function GET(request: NextRequest) {
@@ -87,7 +89,7 @@ export async function GET(request: NextRequest) {
           dateFrom: { lte: new Date(lastNight * 86400000) },
           dateTo: { gte: windowStart },
         },
-        select: { propertyId: true, dateFrom: true, dateTo: true, pricePerNight: true },
+        select: { propertyId: true, dateFrom: true, dateTo: true, pricePerNight: true, name: true },
       }),
     ])
 
@@ -126,7 +128,7 @@ export async function GET(request: NextRequest) {
         }
         const price = Number(hit.pricePerNight)
         const tail = segments[segments.length - 1]
-        if (tail && tail.pricePerNight === price && toDay(tail.to) === d - 1) {
+        if (tail && tail.pricePerNight === price && tail.name === (hit.name ?? null) && toDay(tail.to) === d - 1) {
           tail.to = dayToIso(d)
           tail.nights += 1
           tail.subtotal = Math.round(tail.pricePerNight * tail.nights * 100) / 100
@@ -137,6 +139,7 @@ export async function GET(request: NextRequest) {
             nights: 1,
             pricePerNight: price,
             subtotal: price,
+            name: hit.name ?? null,
           })
         }
       }

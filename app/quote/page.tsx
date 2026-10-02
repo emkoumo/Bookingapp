@@ -25,6 +25,7 @@ type Segment = {
   nights: number
   pricePerNight: number
   subtotal: number
+  name: string | null
 }
 
 type Conflict = { type: 'booking' | 'blocked'; label: string; from: string; to: string }
@@ -245,13 +246,14 @@ function QuoteContent() {
                               {p.segments.length > 1 && (
                                 <div className="bg-gray-50 border-t border-gray-200 px-4 py-2.5 space-y-1">
                                   {p.segments.map((s, i) => (
-                                    <div key={i} className="flex justify-between text-xs text-gray-600 tabular-nums">
-                                      <span>
+                                    <div key={i} className="flex justify-between gap-3 text-xs text-gray-600 tabular-nums">
+                                      <span className="min-w-0">
+                                        {s.name && <span className="font-semibold text-gray-700">{s.name} · </span>}
                                         {shortDate(s.from)}
                                         {s.nights > 1 ? ` – ${shortDate(s.to)}` : ''} · {s.nights} ×{' '}
                                         {euro(s.pricePerNight)}
                                       </span>
-                                      <span className="font-semibold">{euro(s.subtotal)}</span>
+                                      <span className="font-semibold flex-shrink-0">{euro(s.subtotal)}</span>
                                     </div>
                                   ))}
                                 </div>
