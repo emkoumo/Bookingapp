@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import { resolvePricing } from '@/lib/bookingPricing'
+import { isBookingChannel } from '@/lib/pricing'
 
 export async function GET(request: Request) {
   try {
@@ -63,7 +65,9 @@ export async function POST(request: Request) {
       extraBedTotal,
       source,
       adults,
-      children
+      children,
+      nightlyPrices,
+      incomeOverride
     } = body
 
     if (!propertyId || !customerName || !checkIn || !checkOut) {
@@ -198,6 +202,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // Income, guest-paid and the commission snapshot are derived here rather
+    // than trusted from the request. Returns nulls when no snapshot was sent,
+    // in which case the legacy totalPrice path below still applies.
+    const pricing = await resolvePricing({
+      propertyId,
+      source,
+      nightlyPricesRaw: nightlyPrices,
+      incomeOverrideRaw: incomeOverride,
+    })
+
+    // Booking collects the guest's payment and settles by transfer, so an
+    // advance on this channel would read as money still owed. Point (b).
+    const channelIsBooking = isBookingChannel(source)
+
     // Create booking with calculated prices
     const booking = await prisma.booking.create({
       data: {
@@ -212,11 +230,14 @@ export async function POST(request: Request) {
         status: status || 'active',
         // ?? not ||, so a legitimate 0 (free stay, fully-paid balance) is kept
         // instead of being replaced by a price-list total.
-        totalPrice: totalPrice ?? calculatedTotal,
-        advancePayment: advancePayment ?? null,
-        remainingBalance:
-          remainingBalance ??
-          (isCustomPrice ? totalPrice - (advancePayment ?? 0) : calculatedTotal - (advancePayment ?? 0)),
+        // totalPrice follows income whenever a snapshot exists, so the headline
+        // amount can never disagree with what is actually earned.
+        totalPrice: pricing.totalPrice ?? totalPrice ?? calculatedTotal,
+        advancePayment: channelIsBooking ? null : (advancePayment ?? null),
+        remainingBalance: channelIsBooking
+          ? null
+          : (remainingBalance ??
+            (isCustomPrice ? totalPrice - (advancePayment ?? 0) : calculatedTotal - (advancePayment ?? 0))),
         advancePaymentMethod: advancePaymentMethod || null,
         advancePaymentDate: advancePaymentDate ? new Date(advancePaymentDate) : null,
         extraBedEnabled: extraBedEnabled || false,
@@ -226,7 +247,12 @@ export async function POST(request: Request) {
         source: source || 'manual',
         // ?? so a recorded 0 survives; undefined/null stays "not recorded".
         adults: adults ?? null,
-        children: children ?? null
+        children: children ?? null,
+        nightlyPrices: pricing.nightlyPrices ?? undefined,
+        income: pricing.income,
+        incomeOverride: pricing.incomeOverride,
+        guestPaid: pricing.guestPaid,
+        commissionPercent: pricing.commissionPercent
       },
       include: {
         property: {

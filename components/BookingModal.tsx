@@ -46,6 +46,8 @@ interface BookingModalProps {
     source?: string
     adults?: number | null
     children?: number | null
+    nightlyPrices?: Array<{ date: string; price: number; manual?: boolean }>
+    incomeOverride?: number | null
   }) => void
   onDelete?: () => void
   initialData?: {
@@ -68,6 +70,7 @@ interface BookingModalProps {
     source?: string
     adults?: number | null
     children?: number | null
+    incomeOverride?: number | null
   }
   isEdit?: boolean
   businessId?: string
@@ -124,6 +127,13 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   )
   const [extraBedTotal, setExtraBedTotal] = useState<number>(0)
   const [isBookingCom, setIsBookingCom] = useState<boolean>(initialData?.source === BOOKING_COM)
+  // Hand-entered net, for when the real Booking payout is known. Only offered
+  // on the Booking channel; '' means "not set" and is stored as null.
+  const [incomeOverride, setIncomeOverride] = useState<string>(
+    initialData?.incomeOverride === null || initialData?.incomeOverride === undefined
+      ? ''
+      : String(initialData.incomeOverride)
+  )
   // '' means "not recorded" and is preserved as null, so an untouched legacy
   // booking is never silently asserted to have 0 guests.
   const [adults, setAdults] = useState<string>(
@@ -181,6 +191,19 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       }
     }
   }, [formData.checkIn, formData.checkOut, formData.propertyIds])
+
+  // Changing the channel changes which column prices the stay, so refresh the
+  // nightly prices at once. customPrices is deliberately NOT cleared: a night
+  // priced by hand stays as typed, per the spec.
+  const previousChannel = useRef<boolean>(isBookingCom)
+  useEffect(() => {
+    if (previousChannel.current === isBookingCom) return
+    previousChannel.current = isBookingCom
+
+    if (!formData.checkIn || !formData.checkOut || formData.propertyIds.length === 0) return
+    if (formData.propertyIds.length === 1) calculatePrice()
+    else calculateMultiPropertyPrice()
+  }, [isBookingCom])
 
   // In edit mode, pre-populate custom prices when the saved booking total differs
   // from what the CURRENT price list would compute — that gap means a manual
@@ -400,7 +423,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         body: JSON.stringify({
           propertyId: formData.propertyIds[0],
           checkIn: formData.checkIn,
-          checkOut: formData.checkOut
+          checkOut: formData.checkOut,
+          source: isBookingCom ? BOOKING_COM : MANUAL
         })
       })
 
@@ -641,7 +665,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
 
     // Check if booking is blocked due to missing prices
     if (priceCalculation && !priceCalculation.success) {
-      alert('Δεν υπάρχουν τιμές για όλες τις ημερομηνίες. Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.')
+      alert(isBookingCom
+        ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες. Προσθέστε την στον τιμοκατάλογο — δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
+        : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες. Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.')
       return
     }
 
@@ -676,6 +702,17 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       perPropertyPrices: priceCalculation?.perPropertyPrices, // Include per-property prices for multi-property bookings
       advancePaymentPerProperty, // Include split advance payment for multi-property bookings
       source: isBookingCom ? BOOKING_COM : MANUAL,
+      // The per-night snapshot the user actually saw: the price-list breakdown
+      // for this channel, with any hand-typed night marked manual. The server
+      // derives income, guest paid and the commission snapshot from it.
+      nightlyPrices: (priceCalculation?.breakdown ?? []).map((n) => {
+        const typed = customPrices[n.date]
+        return typed === undefined || typed === ''
+          ? { date: n.date, price: n.price }
+          : { date: n.date, price: Number(typed), manual: true }
+      }),
+      // Only meaningful on the Booking channel; '' stays null.
+      incomeOverride: isBookingCom && incomeOverride !== '' ? Number(incomeOverride) : null,
       // '' stays null rather than becoming 0, so "not recorded" is preserved.
       adults: adults === '' ? null : Number(adults),
       children: children === '' ? null : Number(children),
@@ -704,6 +741,42 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
         {/* Form - Scrollable content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 space-y-4">
+          {/* Channel — first, because it decides which prices apply to the stay */}
+          <div className={`rounded-lg border-2 p-4 transition-colors ${
+            isBookingCom ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-gray-800">Κανάλι κράτησης</div>
+                <div className="text-xs text-gray-600 mt-0.5">
+                  {isBookingCom
+                    ? 'Τιμές Booking · η προκαταβολή δεν ισχύει'
+                    : 'Απευθείας — τηλέφωνο, μήνυμα ή επί τόπου'}
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input
+                  type="checkbox"
+                  checked={isBookingCom}
+                  onChange={(e) => setIsBookingCom(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            {isBookingCom && (
+              <div className="mt-3 flex items-center gap-2">
+                <span
+                  className="w-6 h-6 flex-shrink-0 inline-flex items-center justify-center rounded text-xs font-extrabold text-white"
+                  style={{ backgroundColor: '#003b95' }}
+                >
+                  B
+                </span>
+                <span className="text-sm font-semibold text-blue-900">Booking.com</span>
+              </div>
+            )}
+          </div>
+
           {/* Property Selection */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -1093,7 +1166,33 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     )}
                   </div>
 
-                  {/* Advance Payment, Payment Method and Date */}
+                  {/* Booking settles by bank transfer, so no advance applies.
+                      The net override takes its place: used when the real payout
+                      is known. Point (b) and the Booking-only override rule. */}
+                  {isBookingCom ? (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-xs text-blue-900 mb-3">
+                        Η προκαταβολή δεν ισχύει σε κρατήσεις Booking — η πληρωμή γίνεται μέσω Booking
+                        με κατάθεση.
+                      </p>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Καθαρά που εισπράχθηκαν (€)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={incomeOverride}
+                        onChange={(e) => setIncomeOverride(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        placeholder="αυτόματο από την προμήθεια"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        Αφήστε κενό για αυτόματο υπολογισμό. Συμπληρώστε το μόνο όταν ξέρετε το
+                        πραγματικό ποσό της κατάθεσης.
+                      </p>
+                    </div>
+                  ) : (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                     {/* Row 1: Advance Payment */}
                     <div className="mb-3">
@@ -1146,6 +1245,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Remaining Balance Display - Only show when advance payment entered */}
                   {advancePayment && parseFloat(advancePayment) > 0 && (
@@ -1163,10 +1263,14 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 /* Error: Missing Prices */
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-bold mb-1">
-                    ❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!
+                    {isBookingCom
+                      ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
+                      : '❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!'}
                   </p>
                   <p className="text-sm text-red-600">
-                    Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.
+                    {isBookingCom
+                      ? 'Προσθέστε τιμή «Κράτηση Booking» στον τιμοκατάλογο για αυτές τις ημερομηνίες. Δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
+                      : 'Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.'}
                   </p>
                 </div>
               ) : null}
@@ -1533,10 +1637,14 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                 /* Error: Missing Prices */
                 <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-bold mb-1">
-                    ❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!
+                    {isBookingCom
+                      ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
+                      : '❌ Δεν υπάρχουν τιμές για όλες τις ημερομηνίες!'}
                   </p>
                   <p className="text-sm text-red-600 mb-2">
-                    Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.
+                    {isBookingCom
+                      ? 'Προσθέστε τιμή «Κράτηση Booking» στον τιμοκατάλογο για αυτές τις ημερομηνίες. Δεν χρησιμοποιείται η τιμή απευθείας κράτησης.'
+                      : 'Παρακαλώ ορίστε τιμές στον τιμοκατάλογο πρώτα.'}
                   </p>
                   <ul className="text-xs text-red-600 list-disc list-inside">
                     {priceCalculation.missingDates.map((date, idx) => (
@@ -1548,21 +1656,8 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
             </>
           )}
 
-          {/* Channel & party size */}
+          {/* Party size */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isBookingCom}
-                  onChange={(e) => setIsBookingCom(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-              <span className="text-sm font-medium text-gray-700">Κράτηση από Booking.com</span>
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Ενήλικες</label>

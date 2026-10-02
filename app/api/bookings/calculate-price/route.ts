@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { eachDayOfInterval, parseISO, format } from 'date-fns'
+import {
+  CHANNEL_BOOKING,
+  DEFAULT_COMMISSION_PERCENT,
+  DEFAULT_FEE_SETTINGS,
+  computeClimateFee,
+  computeGuestPaid,
+  computeIncome,
+  isBookingChannel,
+  type NightPrice,
+} from '@/lib/pricing'
 
-// POST - Calculate price for a booking
+/**
+ * Price a stay for a given channel.
+ *
+ * `source` picks which column is read: the Booking channel uses the Extranet
+ * price, everything else uses the Direct price. A night with no price for the
+ * chosen channel is reported in `missingDates` — it is never quietly filled in
+ * from the other channel, because that would understate or overstate the money.
+ *
+ * Also returns the income and guest-paid figures so the modal can show them
+ * without duplicating the arithmetic client-side.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { propertyId, checkIn, checkOut } = body
+    const { propertyId, checkIn, checkOut, source } = body
 
-    // Validation
     if (!propertyId || !checkIn || !checkOut) {
       return NextResponse.json(
         { error: 'Property ID, check-in, and check-out dates are required' },
@@ -19,7 +38,6 @@ export async function POST(request: NextRequest) {
     const checkInDate = parseISO(checkIn)
     const checkOutDate = parseISO(checkOut)
 
-    // Validate date range
     if (checkOutDate <= checkInDate) {
       return NextResponse.json(
         { error: 'Η ημερομηνία αναχώρησης πρέπει να είναι μετά την άφιξη' },
@@ -27,65 +45,94 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate array of all dates in the stay (excluding checkout date, as it's not a booked night)
+    const booking = isBookingChannel(source)
+
+    // Settings are per business; a business with no row reads as the defaults.
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { businessId: true },
+    })
+    const settings = property
+      ? await prisma.pricingSettings.findUnique({ where: { businessId: property.businessId } })
+      : null
+
+    const commissionPercent = settings ? Number(settings.commissionPercent) : DEFAULT_COMMISSION_PERCENT
+    const feeSettings = settings
+      ? {
+          climateFeeHigh: Number(settings.climateFeeHigh),
+          climateFeeLow: Number(settings.climateFeeLow),
+          highSeasonStartMonth: settings.highSeasonStartMonth,
+          highSeasonEndMonth: settings.highSeasonEndMonth,
+        }
+      : DEFAULT_FEE_SETTINGS
+
+    // checkOut is exclusive — the checkout day is not a booked night.
     const dates = eachDayOfInterval({
       start: checkInDate,
-      end: new Date(checkOutDate.getTime() - 24 * 60 * 60 * 1000) // Exclude checkout day
+      end: new Date(checkOutDate.getTime() - 24 * 60 * 60 * 1000),
     })
 
-    const breakdown: Array<{ date: string; price: number }> = []
+    const ranges = await prisma.priceRange.findMany({ where: { propertyId } })
+
+    const breakdown: NightPrice[] = []
     const missingDates: string[] = []
-    let totalPrice = 0
+    let gross = 0
 
-    // For each date, find matching price range
     for (const date of dates) {
-      // Format date as string for proper comparison (YYYY-MM-DD)
       const dateStr = format(date, 'yyyy-MM-dd')
+      const cell = new Date(dateStr + 'T00:00:00.000Z')
+      const range = ranges.find((r) => cell >= r.dateFrom && cell <= r.dateTo)
 
-      const priceRange = await prisma.priceRange.findFirst({
-        where: {
-          propertyId,
-          AND: [
-            { dateFrom: { lte: new Date(dateStr + 'T23:59:59.999Z') } },
-            { dateTo: { gte: new Date(dateStr + 'T00:00:00.000Z') } }
-          ]
-        }
-      })
+      const raw = !range
+        ? null
+        : booking
+          ? range.bookingPrice === null
+            ? null
+            : Number(range.bookingPrice)
+          : Number(range.pricePerNight)
 
-      if (!priceRange) {
+      if (raw === null) {
         missingDates.push(dateStr)
-      } else {
-        // Round each price to 2 decimal places before adding to avoid accumulation of floating-point errors
-        const price = Math.round(parseFloat(priceRange.pricePerNight.toString()) * 100) / 100
-        breakdown.push({
-          date: dateStr,
-          price
-        })
-        totalPrice += price
+        continue
       }
+
+      const price = Math.round(raw * 100) / 100
+      breakdown.push({ date: dateStr, price })
+      gross += price
     }
 
-    // If any dates are missing prices, return error
     if (missingDates.length > 0) {
       return NextResponse.json({
         success: false,
+        channel: booking ? CHANNEL_BOOKING : 'manual',
         missingDates,
-        message: 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες'
+        // Named distinctly so the modal can say WHICH price is missing.
+        missingReason: booking ? 'booking_price' : 'direct_price',
+        message: booking
+          ? 'Λείπει τιμή Booking για κάποιες ημερομηνίες'
+          : 'Δεν υπάρχουν τιμές για όλες τις ημερομηνίες',
       })
     }
 
-    // Return successful calculation
+    const income = computeIncome({ nights: breakdown, source, commissionPercent })
+    const guestPaid = computeGuestPaid({ nights: breakdown, source, feeSettings })
+    const climateFee = computeClimateFee({ nights: breakdown, source, feeSettings })
+
     return NextResponse.json({
       success: true,
-      totalPrice: Math.round(totalPrice * 100) / 100, // Round to 2 decimal places
+      channel: booking ? CHANNEL_BOOKING : 'manual',
+      // Gross of the channel prices. For Direct this equals income; for Booking
+      // it is the Extranet total before commission.
+      totalPrice: Math.round(gross * 100) / 100,
       nightsCount: dates.length,
-      breakdown
+      breakdown,
+      income,
+      guestPaid,
+      climateFee,
+      commissionPercent,
     })
   } catch (error) {
     console.error('Error calculating price:', error)
-    return NextResponse.json(
-      { error: 'Failed to calculate price' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to calculate price' }, { status: 500 })
   }
 }
