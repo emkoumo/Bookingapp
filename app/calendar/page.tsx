@@ -38,6 +38,7 @@ interface Booking {
   source?: string
   adults?: number | null
   children?: number | null
+  incomeOverride?: number | null
   property: Property
 }
 
@@ -172,6 +173,8 @@ function CalendarContent() {
     source?: string
     adults?: number | null
     children?: number | null
+    nightlyPrices?: Array<{ date: string; price: number; manual?: boolean }>
+    incomeOverride?: number | null
     perPropertyPrices?: { [propertyId: string]: number }
   }) => {
     try {
@@ -204,6 +207,8 @@ function CalendarContent() {
             source: data.source,
             adults: data.adults,
             children: data.children,
+            nightlyPrices: data.nightlyPrices,
+            incomeOverride: data.incomeOverride,
           }),
         })
       })
@@ -245,6 +250,8 @@ function CalendarContent() {
     source?: string
     adults?: number | null
     children?: number | null
+    nightlyPrices?: Array<{ date: string; price: number; manual?: boolean }>
+    incomeOverride?: number | null
   }) => {
     if (!editingBooking) return
 
@@ -272,6 +279,8 @@ function CalendarContent() {
           source: data.source,
           adults: data.adults,
           children: data.children,
+          nightlyPrices: data.nightlyPrices,
+          incomeOverride: data.incomeOverride,
         }),
       })
 
@@ -442,6 +451,7 @@ function CalendarContent() {
             source: editingBooking.source,
             adults: editingBooking.adults,
             children: editingBooking.children,
+            incomeOverride: editingBooking.incomeOverride,
           }}
           isEdit={true}
           businessId={businessId || ''}
