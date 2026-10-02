@@ -1,13 +1,15 @@
 /**
  * Income and guest-paid arithmetic.
  *
- * Two channels, and the difference matters:
+ * The nightly price stored on a reservation is ALWAYS the net — the money
+ * kept — on both channels. Commission is applied once, where the price list's
+ * Extranet price is converted for display, and never again afterwards:
  *
- *  - Direct (phone, message, walk-in): the nightly price IS the income. It
- *    already includes the climate fee, so nothing is added and nothing is
- *    deducted.
- *  - Booking.com: the nightly price is the Extranet price BEFORE the fee.
- *    Income is that minus commission; the guest additionally pays the fee.
+ *  - Direct (phone, message, walk-in): the quoted price is the income. It
+ *    already includes the climate fee, so nothing is added or deducted.
+ *  - Booking.com: the list's Extranet price is reduced by commission before it
+ *    reaches the reservation (177 becomes 150.45). A price typed by hand is
+ *    taken as the net exactly as entered, so commission is never applied twice.
  *
  * The climate fee is never income — it is collected for the state. It appears
  * only in `guestPaid`, and never in any total.
@@ -25,8 +27,9 @@ export type NightPrice = {
   /** yyyy-MM-dd */
   date: string
   /**
-   * The channel price for this night. For Direct that is the quoted price; for
-   * Booking it is the Extranet price before commission and before the fee.
+   * The NET price for this night — the money kept — on either channel. For
+   * Booking this is already commission-deducted, so nothing further is taken
+   * off it.
    */
   price: number
   /** True when typed by hand rather than taken from the price list. */
@@ -76,25 +79,33 @@ export function nightsTotal(nights: NightPrice[]): number {
 }
 
 /**
- * What you actually keep.
+ * What you actually keep: simply the sum of the nightly net prices, on either
+ * channel. Commission is NOT applied here — it was already taken off when the
+ * Extranet price was converted for the reservation, and a hand-typed price is
+ * the net as entered. Applying it again would under-report income by 15%.
  *
- * Booking: channel price less commission. Direct: the price itself.
- * A hand-entered net always wins — that is the point of it, for when the real
- * payout is known.
+ * A hand-entered net still wins outright, for when the real payout is known.
  */
 export function computeIncome(params: {
   nights: NightPrice[]
   source: string | null | undefined
-  commissionPercent: number
+  commissionPercent?: number
   incomeOverride?: number | null
 }): number {
-  const { nights, source, commissionPercent, incomeOverride } = params
+  const { nights, incomeOverride } = params
   if (incomeOverride !== undefined && incomeOverride !== null) return round2(incomeOverride)
+  return nightsTotal(nights)
+}
 
-  const gross = nightsTotal(nights)
-  if (!isBookingChannel(source)) return gross
+/** Net for one night, from the price list's Extranet figure. 177 -> 150.45. */
+export function bookingPriceToNet(extranetPrice: number, commissionPercent: number): number {
+  return round2(extranetPrice * (1 - commissionPercent / 100))
+}
 
-  return round2(gross * (1 - commissionPercent / 100))
+/** The reverse, for informational figures only. 150.45 -> 177. */
+export function netToBookingPrice(net: number, commissionPercent: number): number {
+  if (commissionPercent >= 100) return net
+  return round2(net / (1 - commissionPercent / 100))
 }
 
 /**
@@ -107,12 +118,18 @@ export function computeGuestPaid(params: {
   nights: NightPrice[]
   source: string | null | undefined
   feeSettings?: FeeSettings
+  commissionPercent?: number
 }): number {
-  const { nights, source, feeSettings = DEFAULT_FEE_SETTINGS } = params
+  const { nights, source, feeSettings = DEFAULT_FEE_SETTINGS, commissionPercent = 0 } = params
   if (!isBookingChannel(source)) return nightsTotal(nights)
 
+  // Nights hold the net, so the Extranet price is reconstructed before the fee
+  // is added. Informational only — never part of a total.
   return round2(
-    nights.reduce((s, n) => s + n.price + climateFeeForNight(n.date, feeSettings), 0)
+    nights.reduce(
+      (s, n) => s + netToBookingPrice(n.price, commissionPercent) + climateFeeForNight(n.date, feeSettings),
+      0
+    )
   )
 }
 

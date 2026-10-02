@@ -5,6 +5,7 @@ import {
   CHANNEL_BOOKING,
   DEFAULT_COMMISSION_PERCENT,
   DEFAULT_FEE_SETTINGS,
+  bookingPriceToNet,
   computeClimateFee,
   computeGuestPaid,
   computeIncome,
@@ -20,8 +21,10 @@ import {
  * chosen channel is reported in `missingDates` — it is never quietly filled in
  * from the other channel, because that would understate or overstate the money.
  *
- * Also returns the income and guest-paid figures so the modal can show them
- * without duplicating the arithmetic client-side.
+ * The returned per-night prices are always the NET. This is the one place
+ * commission is applied: the Extranet 177 becomes 150.45 here, so every figure
+ * downstream — the modal, the snapshot, the income — is already net and cannot
+ * have commission taken off a second time.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -88,7 +91,8 @@ export async function POST(request: NextRequest) {
         : booking
           ? range.bookingPrice === null
             ? null
-            : Number(range.bookingPrice)
+            // Commission comes off here, once. 177 -> 150.45.
+            : bookingPriceToNet(Number(range.bookingPrice), commissionPercent)
           : Number(range.pricePerNight)
 
       if (raw === null) {
@@ -123,15 +127,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const income = computeIncome({ nights: breakdown, source, commissionPercent })
-    const guestPaid = computeGuestPaid({ nights: breakdown, source, feeSettings })
+    const income = computeIncome({ nights: breakdown, source })
+    const guestPaid = computeGuestPaid({ nights: breakdown, source, feeSettings, commissionPercent })
     const climateFee = computeClimateFee({ nights: breakdown, source, feeSettings })
 
     return NextResponse.json({
       success: true,
       channel: booking ? CHANNEL_BOOKING : 'manual',
-      // Gross of the channel prices. For Direct this equals income; for Booking
-      // it is the Extranet total before commission.
+      // Sum of the NET nightly prices, i.e. the income, on either channel.
       totalPrice: Math.round(gross * 100) / 100,
       nightsCount: dates.length,
       breakdown,
