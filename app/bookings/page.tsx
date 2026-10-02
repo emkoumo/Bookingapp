@@ -10,6 +10,7 @@ import Modal from '@/components/Modal'
 import BookingModal from '@/components/BookingModal'
 import DatePicker from '@/components/DatePicker'
 import BookingMeta, { BookingComLogo } from '@/components/BookingMeta'
+import { displayIncome, displayGuestPaid, displayRemaining, displayAdvance, summariseBookings, formatEuro } from '@/lib/bookingDisplay'
 import Header from '@/components/Header'
 import { resolveYear, stayTouchesYear } from '@/lib/year'
 
@@ -40,6 +41,8 @@ interface Booking {
   adults?: number | null
   children?: number | null
   incomeOverride?: number | null
+  income?: number | null
+  guestPaid?: number | null
   property: {
     id: string
     name: string
@@ -156,15 +159,14 @@ function BookingsContent() {
   // (totalPrice − advancePayment) instead of summing the stored remainingBalance
   // column, which can be null or out of sync on older records. This way the
   // three totals always satisfy: advances + remaining = revenue.
-  const financialSummary = filteredBookings.reduce((acc, booking) => {
-    const total = booking.totalPrice ? Number(booking.totalPrice) : 0
-    const advance = booking.advancePayment ? Number(booking.advancePayment) : 0
-    return {
-      totalRevenue: acc.totalRevenue + total,
-      totalAdvances: acc.totalAdvances + advance,
-      totalRemaining: acc.totalRemaining + Math.max(0, total - advance),
-    }
-  }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
+  // Revenue is the sum of INCOME: a Booking reservation contributes its net,
+  // not its gross. Guest-paid and the climate fee are never in a total.
+  const summary = summariseBookings(filteredBookings)
+  const financialSummary = {
+    totalRevenue: summary.totalIncome,
+    totalAdvances: summary.totalAdvances,
+    totalRemaining: summary.totalRemaining,
+  }
 
   const handleShowAll = () => {
     setFilterMode('all')
@@ -758,7 +760,14 @@ function BookingsContent() {
                                 <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg p-3 space-y-2">
                                   <div className="flex justify-between items-center">
                                     <span className="text-sm font-bold text-gray-700">Σύνολο</span>
-                                    <span className="text-base font-bold text-blue-600">€{Number(booking.totalPrice).toFixed(2)}</span>
+                                    <span className="text-base font-bold text-blue-600">
+                                      {formatEuro(displayIncome(booking))}
+                                      {displayGuestPaid(booking) !== null && (
+                                        <span className="ml-1 text-xs font-semibold text-gray-500">
+                                          ({formatEuro(displayGuestPaid(booking)!)})
+                                        </span>
+                                      )}
+                                    </span>
                                   </div>
                                   {booking.extraBedEnabled && (
                                     <div className="flex justify-between items-center text-xs text-purple-700 bg-purple-50 -mx-3 px-3 py-1.5">
@@ -784,10 +793,10 @@ function BookingsContent() {
                                           )}
                                         </div>
                                       )}
-                                      {booking.remainingBalance && booking.remainingBalance > 0 && (
+                                      {displayRemaining(booking) !== null && displayRemaining(booking)! > 0 && (
                                         <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                                           <span className="text-sm font-bold text-gray-700">Υπόλοιπο</span>
-                                          <span className="text-base font-bold text-amber-600">€{Number(booking.remainingBalance).toFixed(2)}</span>
+                                          <span className="text-base font-bold text-amber-600">{formatEuro(displayRemaining(booking)!)}</span>
                                         </div>
                                       )}
                                     </>
@@ -908,10 +917,15 @@ function BookingsContent() {
                                 ) : '-'}
                               </td>
                               <td className="p-3 text-right font-bold text-blue-600">
-                                {booking.totalPrice ? `€${Number(booking.totalPrice).toFixed(2)}` : (booking.deposit || '-')}
+                                {booking.totalPrice || booking.income ? formatEuro(displayIncome(booking)) : (booking.deposit || '-')}
+                                {displayGuestPaid(booking) !== null && (
+                                  <span className="ml-1 text-xs font-normal text-gray-500">
+                                    ({formatEuro(displayGuestPaid(booking)!)})
+                                  </span>
+                                )}
                               </td>
                               <td className="p-3 text-right font-semibold text-green-600">
-                                {booking.advancePayment ? `€${Number(booking.advancePayment).toFixed(2)}` : '-'}
+                                {displayAdvance(booking) ? formatEuro(displayAdvance(booking)!) : '-'}
                               </td>
                               <td className="p-3 text-xs">
                                 {booking.advancePaymentMethod || '-'}
@@ -922,7 +936,7 @@ function BookingsContent() {
                                 )}
                               </td>
                               <td className="p-3 text-right font-semibold text-amber-600">
-                                {booking.remainingBalance ? `€${Number(booking.remainingBalance).toFixed(2)}` : '-'}
+                                {displayRemaining(booking) ? formatEuro(displayRemaining(booking)!) : '-'}
                               </td>
                               <td className="p-3">
                                 <div className="flex gap-2 justify-center">

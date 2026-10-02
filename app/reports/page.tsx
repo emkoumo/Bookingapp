@@ -8,6 +8,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import BookingMeta, { BookingComLogo } from '@/components/BookingMeta'
 import { isBookingCom } from '@/lib/bookingSource'
+import { displayIncome, displayGuestPaid, displayRemaining, displayAdvance, summariseBookings, formatEuro } from '@/lib/bookingDisplay'
 import Header from '@/components/Header'
 import Toast from '@/components/Toast'
 import DatePicker from '@/components/DatePicker'
@@ -41,6 +42,9 @@ interface Booking {
   source?: string
   adults?: number | null
   children?: number | null
+  income?: number | null
+  guestPaid?: number | null
+  incomeOverride?: number | null
   property: {
     id: string
     name: string
@@ -242,15 +246,14 @@ function ReportsContent() {
   // (totalPrice − advancePayment) instead of summing the stored remainingBalance
   // column, which can be null or out of sync on older records. This way the
   // three totals always satisfy: advances + remaining = revenue.
-  const financialSummary = filteredBookings.reduce((acc, booking) => {
-    const total = booking.totalPrice ? Number(booking.totalPrice) : 0
-    const advance = booking.advancePayment ? Number(booking.advancePayment) : 0
-    return {
-      totalRevenue: acc.totalRevenue + total,
-      totalAdvances: acc.totalAdvances + advance,
-      totalRemaining: acc.totalRemaining + Math.max(0, total - advance),
-    }
-  }, { totalRevenue: 0, totalAdvances: 0, totalRemaining: 0 })
+  // Revenue is the sum of INCOME: a Booking reservation contributes its net,
+  // not its gross. Guest-paid and the climate fee are never in a total.
+  const summary = summariseBookings(filteredBookings)
+  const financialSummary = {
+    totalRevenue: summary.totalIncome,
+    totalAdvances: summary.totalAdvances,
+    totalRemaining: summary.totalRemaining,
+  }
 
   const handleTabChange = (tab: 'future' | 'historical') => {
     setActiveTab(tab)
@@ -274,7 +277,7 @@ function ReportsContent() {
   }
 
   const exportCSV = () => {
-    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Κανάλι', 'Ενήλικες', 'Παιδιά', 'Επαφή', 'Σύνολο (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
+    const headers = ['Όνομα', 'Κατάλυμα', 'Check-in', 'Check-out', 'Κανάλι', 'Ενήλικες', 'Παιδιά', 'Επαφή', 'Έσοδα (€)', 'Πλήρωσε ο πελάτης (€)', 'Προκαταβολή (€)', 'Τρόπος Πληρωμής', 'Υπόλοιπο (€)', 'Κατάσταση']
     const rows = filteredBookings.map((b) => [
       b.customerName,
       b.property.name,
@@ -284,10 +287,11 @@ function ReportsContent() {
       b.adults ?? '',
       b.children ?? '',
       b.contactInfo || '',
-      b.totalPrice ? Number(b.totalPrice).toFixed(2) : (b.deposit || '-'),
-      b.advancePayment ? Number(b.advancePayment).toFixed(2) : '-',
+      displayIncome(b).toFixed(2),
+      displayGuestPaid(b) !== null ? displayGuestPaid(b)!.toFixed(2) : '',
+      displayAdvance(b) !== null && displayAdvance(b) ? displayAdvance(b)!.toFixed(2) : '-',
       b.advancePaymentMethod || '-',
-      b.remainingBalance ? Number(b.remainingBalance).toFixed(2) : '-',
+      displayRemaining(b) ? displayRemaining(b)!.toFixed(2) : '-',
       b.status,
     ])
 
@@ -899,7 +903,14 @@ function ReportsContent() {
                                 <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg p-3 space-y-2">
                                   <div className="flex justify-between items-center">
                                     <span className="text-sm font-bold text-gray-700">Σύνολο</span>
-                                    <span className="text-base font-bold text-blue-600">€{Number(booking.totalPrice).toFixed(2)}</span>
+                                    <span className="text-base font-bold text-blue-600">
+                                      {formatEuro(displayIncome(booking))}
+                                      {displayGuestPaid(booking) !== null && (
+                                        <span className="ml-1 text-xs font-semibold text-gray-500">
+                                          ({formatEuro(displayGuestPaid(booking)!)})
+                                        </span>
+                                      )}
+                                    </span>
                                   </div>
                                   {booking.extraBedEnabled && (
                                     <div className="pdf-price-badge flex justify-between items-center text-xs text-purple-700 bg-purple-50 -mx-3 px-3 py-1.5">
@@ -925,10 +936,10 @@ function ReportsContent() {
                                           )}
                                         </div>
                                       )}
-                                      {booking.remainingBalance && booking.remainingBalance > 0 && (
+                                      {displayRemaining(booking) !== null && displayRemaining(booking)! > 0 && (
                                         <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                                           <span className="text-sm font-bold text-gray-700">Υπόλοιπο</span>
-                                          <span className="text-base font-bold text-amber-600">€{Number(booking.remainingBalance).toFixed(2)}</span>
+                                          <span className="text-base font-bold text-amber-600">{formatEuro(displayRemaining(booking)!)}</span>
                                         </div>
                                       )}
                                     </>
@@ -1056,7 +1067,14 @@ function ReportsContent() {
                               </td>
                               <td className="p-3 text-right font-bold text-blue-600" style={{ verticalAlign: 'middle' }}>
                                 <div className="flex flex-col items-end gap-1">
-                                  <span>{booking.totalPrice ? `€${Number(booking.totalPrice).toFixed(2)}` : (booking.deposit || '-')}</span>
+                                  <span>
+                                    {booking.totalPrice || booking.income ? formatEuro(displayIncome(booking)) : (booking.deposit || '-')}
+                                    {displayGuestPaid(booking) !== null && (
+                                      <span className="ml-1 text-xs font-normal text-gray-500">
+                                        ({formatEuro(displayGuestPaid(booking)!)})
+                                      </span>
+                                    )}
+                                  </span>
                                   {booking.extraBedEnabled && (
                                     <span className="pdf-price-badge inline-flex items-center px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold" title="Extra Κρεβάτι">
                                       {booking.extraBedTotal && booking.extraBedTotal > 0
@@ -1067,7 +1085,7 @@ function ReportsContent() {
                                 </div>
                               </td>
                               <td className="p-3 text-right font-semibold text-green-600" style={{ verticalAlign: 'middle' }}>
-                                {booking.advancePayment ? `€${Number(booking.advancePayment).toFixed(2)}` : '-'}
+                                {displayAdvance(booking) ? formatEuro(displayAdvance(booking)!) : '-'}
                               </td>
                               <td className="p-3 text-xs" style={{ verticalAlign: 'middle' }}>
                                 <div>{booking.advancePaymentMethod || '-'}</div>
@@ -1078,7 +1096,7 @@ function ReportsContent() {
                                 )}
                               </td>
                               <td className="p-3 text-right font-semibold text-amber-600" style={{ verticalAlign: 'middle' }}>
-                                {booking.remainingBalance ? `€${Number(booking.remainingBalance).toFixed(2)}` : '-'}
+                                {displayRemaining(booking) ? formatEuro(displayRemaining(booking)!) : '-'}
                               </td>
                             </tr>
                           ))

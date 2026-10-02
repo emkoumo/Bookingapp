@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { displayIncome, displayAdvance } from '@/lib/bookingDisplay'
 
 /**
  * Analytics view for the Reports page.
@@ -36,6 +37,8 @@ interface Booking {
   totalPrice?: number
   advancePayment?: number
   createdAt?: string
+  source?: string | null
+  income?: number | null
   property: { id: string; name: string }
 }
 
@@ -219,7 +222,8 @@ export default function AnalyticsTab({
     const nights = overlapNights(bIn, bOut - 1, from, to)
     if (nights === 0) continue
 
-    const total = b.totalPrice ? Number(b.totalPrice) : 0
+    // Income, so a Booking reservation contributes its net rather than gross.
+    const total = displayIncome(b)
     contributions.push({ nights, revenue: (total * nights) / stayNights, booking: b })
   }
 
@@ -244,7 +248,7 @@ export default function AnalyticsTab({
     return bIn >= from && bIn <= to
   })
 
-  const startingValue = starting.reduce((s, b) => s + (b.totalPrice ? Number(b.totalPrice) : 0), 0)
+  const startingValue = starting.reduce((s, b) => s + displayIncome(b), 0)
   const startingNights = starting.reduce((s, b) => s + (toDay(b.checkOut) - toDay(b.checkIn)), 0)
   const avgBookingValue = starting.length > 0 ? startingValue / starting.length : 0
   const avgStay = starting.length > 0 ? startingNights / starting.length : 0
@@ -255,7 +259,7 @@ export default function AnalyticsTab({
       ? withCreated.reduce((s, b) => s + (toDay(b.checkIn) - toDay(b.createdAt!)), 0) / withCreated.length
       : null
 
-  const advances = starting.reduce((s, b) => s + (b.advancePayment ? Number(b.advancePayment) : 0), 0)
+  const advances = starting.reduce((s, b) => s + (displayAdvance(b) ?? 0), 0)
   const outstanding = startingValue - advances
 
   // ---- Per-property ------------------------------------------------------
@@ -308,7 +312,7 @@ export default function AnalyticsTab({
         const n = overlapNights(bIn, bOut - 1, wStart, wEnd)
         if (n === 0) continue
         nights += n
-        revenue += ((b.totalPrice ? Number(b.totalPrice) : 0) * n) / stayNights
+        revenue += (displayIncome(b) * n) / stayNights
       }
 
       const blocked = blockedDates
