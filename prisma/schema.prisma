@@ -16,6 +16,31 @@ model Business {
   emailTemplates EmailTemplate[]
   paymentMethods PaymentMethod[]
   properties     Property[]
+  pricingSettings PricingSettings?
+}
+
+/**
+ * Per-business pricing constants. One row per business, created on demand with
+ * the defaults below, so a business without a row behaves exactly as if it had
+ * the default one.
+ *
+ * The climate fee lives here because it is a state rule rather than a pricing
+ * decision: the amounts and the month boundary can change by law.
+ */
+model PricingSettings {
+  id                   String   @id @default(uuid())
+  businessId           String   @unique
+  // Booking.com commission, as a percentage.
+  commissionPercent    Decimal  @default(15) @db.Decimal(5, 2)
+  // Climate resilience fee per night: high season vs low.
+  climateFeeHigh       Decimal  @default(8) @db.Decimal(10, 2)
+  climateFeeLow        Decimal  @default(2) @db.Decimal(10, 2)
+  // Inclusive month numbers for the high-fee season (April–October).
+  highSeasonStartMonth Int      @default(4)
+  highSeasonEndMonth   Int      @default(10)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  business             Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
 model Property {
@@ -59,7 +84,8 @@ model Booking {
   extraBedPricePerNight  Decimal? @db.Decimal(10, 2)
   extraBedTotal          Decimal? @db.Decimal(10, 2)
   // Set when the price was entered by hand rather than derived from the price
-  // list. Price-list recalculation must skip these; see lib/recalculateBookings.ts
+  // list. Now purely a display flag (the orange marker): since the price-list
+  // recalculation was removed, no code path can rewrite a reservation's price.
   hasCustomPrice         Boolean  @default(false)
   // Party size. Nullable on purpose: the bookings that predate these columns
   // recorded their counts as free text in `notes`, and storing 0 would assert
@@ -67,6 +93,30 @@ model Booking {
   // for the details these two cannot hold — ages, cots, pets.
   adults                 Int?
   children               Int?
+
+  // ---- Price snapshot and income -------------------------------------------
+  // All nullable, and that IS the safety mechanism: a reservation predating
+  // these columns has them NULL, so every display falls back to totalPrice and
+  // nothing about it is reinterpreted.
+  //
+  // Per-night snapshot: [{"date":"2027-07-12","price":392,"manual":false}].
+  // `price` is the CHANNEL price — the quoted price for Direct, the Extranet
+  // price before commission and fee for Booking. Frozen at creation, so a
+  // later price-list or commission change cannot move it; on a date edit the
+  // surviving nights keep these values and only new nights are priced.
+  nightlyPrices          Json?
+  // What is actually kept: channel price less commission for Booking, the
+  // price itself for every other channel. totalPrice is kept equal to this.
+  income                 Decimal? @db.Decimal(10, 2)
+  // Hand-corrected payout, for when the real Booking transfer is known. Wins
+  // over the calculation and carries the orange manual flag.
+  incomeOverride         Decimal? @db.Decimal(10, 2)
+  // Informational only — what the guest paid, including the climate fee on
+  // Booking. Never part of income, reports or any total.
+  guestPaid              Decimal? @db.Decimal(10, 2)
+  // Commission rate in force when this reservation was made, so changing the
+  // setting later cannot move the income of past reservations.
+  commissionPercent      Decimal? @db.Decimal(5, 2)
   property               Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
