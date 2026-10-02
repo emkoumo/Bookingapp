@@ -1,4 +1,15 @@
-import { isBookingChannel } from './pricing'
+import { isBookingCom } from './bookingSource'
+
+/**
+ * Channel test for display purposes.
+ *
+ * Deliberately isBookingCom rather than the source column alone: 14 of the
+ * existing Booking reservations are identified only by the legacy 🛑 in their
+ * notes, and the badge already recognises them. Using a narrower test here
+ * would have shown the badge on a reservation while treating it as Direct for
+ * money — the two must agree.
+ */
+const isBookingChannel = (b: DisplayBooking) => isBookingCom({ source: b.source, notes: b.notes })
 
 /**
  * How a reservation's money is presented, in one place, so the cards, the
@@ -44,31 +55,34 @@ export function displayIncome(b: DisplayBooking): number {
  * nothing rather than a guess.
  */
 export function displayGuestPaid(b: DisplayBooking): number | null {
-  if (!isBookingChannel(b.source)) return null
+  if (!isBookingChannel(b)) return null
   return num(b.guestPaid)
 }
 
 /**
- * Whether to present a remaining balance at all.
+ * Outstanding amount.
  *
- * Never on Booking: the advance is disabled there and Booking settles by bank
- * transfer, so showing total − advance would read as money still owed.
+ * Always 0 on Booking: the guest pays Booking up front and Booking forwards the
+ * whole sum, so a Booking reservation is fully prepaid by the time it exists
+ * and nothing is ever owed on it.
  */
-export function showsRemainingBalance(b: DisplayBooking): boolean {
-  return !isBookingChannel(b.source)
-}
-
-/** Outstanding amount, or null when the channel has no meaningful balance. */
 export function displayRemaining(b: DisplayBooking): number | null {
-  if (!showsRemainingBalance(b)) return null
+  if (isBookingChannel(b)) return 0
   const total = displayIncome(b)
   const advance = num(b.advancePayment) ?? 0
   return Math.round(Math.max(0, total - advance) * 100) / 100
 }
 
-/** Advance, or null on Booking where it does not apply. */
+/**
+ * Prepaid amount.
+ *
+ * On Booking this is the whole income: the entire sum arrives in advance, so it
+ * belongs under προκαταβολή rather than being left blank. Derived rather than
+ * stored, so it is true of existing and future reservations alike without
+ * rewriting a single row.
+ */
 export function displayAdvance(b: DisplayBooking): number | null {
-  if (isBookingChannel(b.source)) return null
+  if (isBookingChannel(b)) return displayIncome(b)
   return num(b.advancePayment)
 }
 
