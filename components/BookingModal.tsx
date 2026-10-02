@@ -130,6 +130,11 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   const [isBookingCom, setIsBookingCom] = useState<boolean>(initialData?.source === BOOKING_COM)
   // Hand-entered net, for when the real Booking payout is known. Only offered
   // on the Booking channel; '' means "not set" and is stored as null.
+  // Filling the gaps in the price list: one price for every uncovered night by
+  // default, since that is almost always what is wanted. Per-night entry is an
+  // opt-in for the occasional stay priced differently day by day.
+  const [gapPrice, setGapPrice] = useState<string>('')
+  const [gapPerNight, setGapPerNight] = useState<boolean>(false)
   const [incomeOverride, setIncomeOverride] = useState<string>(
     initialData?.incomeOverride === null || initialData?.incomeOverride === undefined
       ? ''
@@ -183,6 +188,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
       // Clear custom prices when dates change (but not on initial load in edit mode)
       if (!isEdit) {
         setCustomPrices({})
+        // The gap price referred to the previous nights; keeping it would show a
+        // figure while the new nights are actually uncovered.
+        setGapPrice('')
       }
     } else {
       // Don't clear price calculation if editing with existing data
@@ -200,6 +208,10 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
   useEffect(() => {
     if (previousChannel.current === isBookingCom) return
     previousChannel.current = isBookingCom
+
+    // The uncovered nights differ per channel, so a carried-over gap price would
+    // be misleading. Hand-typed per-night prices are kept, as specified.
+    setGapPrice('')
 
     if (!formData.checkIn || !formData.checkOut || formData.propertyIds.length === 0) return
     if (formData.propertyIds.length === 1) calculatePrice()
@@ -607,6 +619,20 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     return typed !== undefined && typed !== '' && Number(typed) > 0
   })
   const allNightsPriced = Boolean(priceCalculation?.success) || (missingNights.length > 0 && missingNightsCovered)
+
+  // One price across every uncovered night. Writes them all in a single go so
+  // the common case is one field and one tap.
+  const applyGapPriceToAll = (raw: string) => {
+    setGapPrice(raw)
+    setCustomPrices((prev) => {
+      const next = { ...prev }
+      for (const d of missingNights) {
+        if (raw === '') delete next[d]
+        else next[d] = parseFloat(raw)
+      }
+      return next
+    })
+  }
 
   const groupByPrice = (breakdown: Array<{ date: string; price: number }>) => {
     const groups: Array<{
@@ -1293,37 +1319,85 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                       : 'Ορίστε τιμές στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'}
                   </p>
 
-                  {/* Hand-typed prices for the uncovered nights, so a reservation
-                      can still be taken before the price list is filled in. */}
-                  <div className="space-y-2">
-                    {(priceCalculation.missingDates ?? []).map((date) => (
-                      <div key={date} className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-gray-800">
-                          {format(parseISO(date), 'd MMM yyyy', { locale: el })}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={customPrices[date] === undefined ? '' : customPrices[date]}
-                            onChange={(e) => {
-                              const raw = e.target.value
-                              setCustomPrices((prev) => {
-                                const next = { ...prev }
-                                if (raw === '') delete next[date]
-                                else next[date] = parseFloat(raw)
-                                return next
-                              })
-                            }}
-                            className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
-                            placeholder="0.00"
-                          />
-                          <span className="text-sm text-gray-600">€</span>
-                        </div>
+                  {/* One price for every uncovered night — the usual case, one
+                      field and one tap. Per-night entry is behind a toggle for
+                      the occasional stay priced differently day by day. */}
+                  {!gapPerNight ? (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Τιμή για όλες τις νύχτες ({missingNights.length})
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={gapPrice}
+                          onChange={(e) => applyGapPriceToAll(e.target.value)}
+                          className="flex-1 px-3 py-2.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-right font-semibold"
+                          placeholder="0.00"
+                        />
+                        <span className="text-sm text-gray-600">€ / νύχτα</span>
                       </div>
-                    ))}
-                  </div>
+                      {gapPrice !== '' && Number(gapPrice) > 0 && (
+                        <p className="mt-1 text-xs text-gray-600">
+                          Σύνολο για τις {missingNights.length} νύχτες:{' '}
+                          <span className="font-bold">
+                            €{(Number(gapPrice) * missingNights.length).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setGapPerNight(true)}
+                        className="mt-2 text-xs font-semibold text-blue-700 hover:underline"
+                      >
+                        Διαφορετική τιμή ανά νύχτα
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-700">Τιμή ανά νύχτα</span>
+                        <button
+                          type="button"
+                          onClick={() => setGapPerNight(false)}
+                          className="text-xs font-semibold text-blue-700 hover:underline"
+                        >
+                          Ίδια τιμή για όλες
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {missingNights.map((date) => (
+                          <div key={date} className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-gray-800">
+                              {format(parseISO(date), 'd MMM yyyy', { locale: el })}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={customPrices[date] === undefined ? '' : customPrices[date]}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  setCustomPrices((prev) => {
+                                    const next = { ...prev }
+                                    if (raw === '') delete next[date]
+                                    else next[date] = parseFloat(raw)
+                                    return next
+                                  })
+                                }}
+                                className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                                placeholder="0.00"
+                              />
+                              <span className="text-sm text-gray-600">€</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {missingNightsCovered && (
                     <p className="mt-3 text-xs font-semibold text-green-700">
@@ -1705,37 +1779,85 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                       : 'Ορίστε τιμές στον τιμοκατάλογο ή γράψτε χειροκίνητη τιμή παρακάτω.'}
                   </p>
 
-                  {/* Hand-typed prices for the uncovered nights, so a reservation
-                      can still be taken before the price list is filled in. */}
-                  <div className="space-y-2">
-                    {(priceCalculation.missingDates ?? []).map((date) => (
-                      <div key={date} className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-gray-800">
-                          {format(parseISO(date), 'd MMM yyyy', { locale: el })}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={customPrices[date] === undefined ? '' : customPrices[date]}
-                            onChange={(e) => {
-                              const raw = e.target.value
-                              setCustomPrices((prev) => {
-                                const next = { ...prev }
-                                if (raw === '') delete next[date]
-                                else next[date] = parseFloat(raw)
-                                return next
-                              })
-                            }}
-                            className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
-                            placeholder="0.00"
-                          />
-                          <span className="text-sm text-gray-600">€</span>
-                        </div>
+                  {/* One price for every uncovered night — the usual case, one
+                      field and one tap. Per-night entry is behind a toggle for
+                      the occasional stay priced differently day by day. */}
+                  {!gapPerNight ? (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Τιμή για όλες τις νύχτες ({missingNights.length})
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={gapPrice}
+                          onChange={(e) => applyGapPriceToAll(e.target.value)}
+                          className="flex-1 px-3 py-2.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-right font-semibold"
+                          placeholder="0.00"
+                        />
+                        <span className="text-sm text-gray-600">€ / νύχτα</span>
                       </div>
-                    ))}
-                  </div>
+                      {gapPrice !== '' && Number(gapPrice) > 0 && (
+                        <p className="mt-1 text-xs text-gray-600">
+                          Σύνολο για τις {missingNights.length} νύχτες:{' '}
+                          <span className="font-bold">
+                            €{(Number(gapPrice) * missingNights.length).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setGapPerNight(true)}
+                        className="mt-2 text-xs font-semibold text-blue-700 hover:underline"
+                      >
+                        Διαφορετική τιμή ανά νύχτα
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-700">Τιμή ανά νύχτα</span>
+                        <button
+                          type="button"
+                          onClick={() => setGapPerNight(false)}
+                          className="text-xs font-semibold text-blue-700 hover:underline"
+                        >
+                          Ίδια τιμή για όλες
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {missingNights.map((date) => (
+                          <div key={date} className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-gray-800">
+                              {format(parseISO(date), 'd MMM yyyy', { locale: el })}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={customPrices[date] === undefined ? '' : customPrices[date]}
+                                onChange={(e) => {
+                                  const raw = e.target.value
+                                  setCustomPrices((prev) => {
+                                    const next = { ...prev }
+                                    if (raw === '') delete next[date]
+                                    else next[date] = parseFloat(raw)
+                                    return next
+                                  })
+                                }}
+                                className="w-24 px-2 py-1.5 border-2 border-amber-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm text-right"
+                                placeholder="0.00"
+                              />
+                              <span className="text-sm text-gray-600">€</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {missingNightsCovered && (
                     <p className="mt-3 text-xs font-semibold text-green-700">
