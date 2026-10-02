@@ -106,8 +106,9 @@ export async function resolvePricing(params: {
 
   const { commissionPercent, feeSettings } = await settingsForProperty(propertyId)
 
-  const income = computeIncome({ nights, source, commissionPercent, incomeOverride })
-  const guestPaid = computeGuestPaid({ nights, source, feeSettings })
+  // Nights already hold the net, so commission is not applied again here.
+  const income = computeIncome({ nights, source, incomeOverride })
+  const guestPaid = computeGuestPaid({ nights, source, feeSettings, commissionPercent })
 
   return {
     nightlyPrices: nights,

@@ -637,13 +637,9 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
     })
   }
 
-  // On Booking the per-night figure is the Extranet price, which is not what
-  // you earn. Everything presented as money goes through here, so the modal
-  // shows the same number the reservation will actually store.
-  const commissionPercent = priceCalculation?.commissionPercent ?? 15
-  const toNet = (gross: number) =>
-    isBookingCom ? Math.round(gross * (1 - commissionPercent / 100) * 100) / 100 : Math.round(gross * 100) / 100
-
+  // Every price here is already the NET: the API converts the list's Extranet
+  // figure once (177 -> 150.45), and a price typed by hand is the net as typed.
+  // Nothing in the modal deducts commission again.
   const groupByPrice = (breakdown: Array<{ date: string; price: number }>) => {
     const groups: Array<{
       price: number
@@ -1073,7 +1069,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                               {/* Price Input */}
                               <div className="flex items-center gap-3 px-4 py-3">
                                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                                  {isBookingCom ? 'Τιμή Booking / νύχτα:' : 'Τιμή / νύχτα:'}
+                                  {isBookingCom ? 'Καθαρά / νύχτα:' : 'Τιμή / νύχτα:'}
                                 </label>
                                 <div className="relative flex-1">
                                   <input
@@ -1138,17 +1134,10 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                                 <span className="text-sm text-gray-500">€</span>
                               </div>
 
-                              {/* Subtotal — net on Booking, since that is what is earned */}
-                              <div className="px-4 py-3 border-t border-gray-300">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm text-gray-600">{isBookingCom ? 'Καθαρά:' : 'Υποσύνολο:'}</span>
-                                  <span className="text-lg font-bold text-gray-800">€{toNet(subtotal).toFixed(2)}</span>
-                                </div>
-                                {isBookingCom && (
-                                  <div className="mt-1 text-xs text-gray-500">
-                                    Τιμή Booking €{subtotal.toFixed(2)} − προμήθεια {commissionPercent}%
-                                  </div>
-                                )}
+                              {/* Subtotal. Already net on both channels, so a plain sum. */}
+                              <div className="px-4 py-3 border-t border-gray-300 flex justify-between items-center">
+                                <span className="text-sm text-gray-600">{isBookingCom ? 'Καθαρά:' : 'Υποσύνολο:'}</span>
+                                <span className="text-lg font-bold text-gray-800">€{subtotal.toFixed(2)}</span>
                               </div>
                             </div>
                           )
@@ -1169,38 +1158,20 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                     </div>
                   )}
 
-                  {/* Total. On Booking this is the NET — the figure that gets
-                      stored — with the Extranet total and what the guest pays
-                      shown underneath for reference. Showing the gross here
-                      disagreed with what was actually saved. */}
+                  {/* Total. Already net on both channels, so a plain sum of the
+                      nightly prices — no derived figures, nothing to reconcile. */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-gray-700">
                         {isBookingCom ? 'Καθαρά έσοδα:' : 'Σύνολο:'}
                       </span>
                       <span className="text-2xl font-bold text-blue-600">
-                        €{toNet(Number(priceCalculation.totalPrice) + extraBedTotal).toFixed(2)}
+                        €{(Number(priceCalculation.totalPrice) + extraBedTotal).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
                       {priceCalculation.nightsCount} {priceCalculation.nightsCount === 1 ? 'νύχτα' : 'νύχτες'}
                     </div>
-                    {isBookingCom && (
-                      <div className="mt-2 pt-2 border-t border-blue-200 space-y-0.5 text-xs text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Τιμή Booking (πριν την προμήθεια):</span>
-                          <span className="font-semibold">
-                            €{(Number(priceCalculation.totalPrice) + extraBedTotal).toFixed(2)}
-                          </span>
-                        </div>
-                        {priceCalculation.guestPaid !== undefined && (
-                          <div className="flex justify-between">
-                            <span>Πληρώνει ο πελάτης (με τέλος):</span>
-                            <span className="font-semibold">€{Number(priceCalculation.guestPaid).toFixed(2)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   {/* Extra Παροχές Section */}
@@ -1556,7 +1527,7 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                             {/* Price Input */}
                             <div className="flex items-center gap-3 px-4 py-3">
                               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                                {isBookingCom ? 'Τιμή Booking / νύχτα:' : 'Τιμή / νύχτα:'}
+                                {isBookingCom ? 'Καθαρά / νύχτα:' : 'Τιμή / νύχτα:'}
                               </label>
                               <div className="relative flex-1">
                                 <input
@@ -1622,17 +1593,10 @@ export default function BookingModal({ properties, onClose, onSave, onDelete, in
                             </div>
 
                             {/* Subtotal per property */}
-                            {/* Subtotal — net on Booking, since that is what is earned */}
-                            <div className="px-4 py-3 border-t border-gray-300">
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm text-gray-600">{isBookingCom ? 'Καθαρά:' : 'Υποσύνολο:'}</span>
-                                <span className="text-lg font-bold text-gray-800">€{toNet(subtotal).toFixed(2)}</span>
-                              </div>
-                              {isBookingCom && (
-                                <div className="mt-1 text-xs text-gray-500">
-                                  Τιμή Booking €{subtotal.toFixed(2)} − προμήθεια {commissionPercent}%
-                                </div>
-                              )}
+                            {/* Subtotal. Already net on both channels, so a plain sum. */}
+                            <div className="px-4 py-3 border-t border-gray-300 flex justify-between items-center">
+                              <span className="text-sm text-gray-600">{isBookingCom ? 'Καθαρά:' : 'Υποσύνολο:'}</span>
+                              <span className="text-lg font-bold text-gray-800">€{subtotal.toFixed(2)}</span>
                             </div>
                           </div>
                         )
