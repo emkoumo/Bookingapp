@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           dateFrom: { lte: new Date(lastNight * 86400000) },
           dateTo: { gte: windowStart },
         },
-        select: { propertyId: true, dateFrom: true, dateTo: true, pricePerNight: true, name: true },
+        select: { propertyId: true, dateFrom: true, dateTo: true, pricePerNight: true, bookingPrice: true, name: true },
       }),
     ])
 
@@ -118,6 +118,10 @@ export async function GET(request: NextRequest) {
       const mine = ranges.filter((r) => r.propertyId === p.id)
       const segments: Segment[] = []
       const missingDates: string[] = []
+      // The Extranet price for the same stay, shown for comparison when
+      // quoting. Null unless every night has one, so a partial figure is never
+      // presented as the Booking total.
+      let bookingTotal: number | null = 0
 
       for (let d = first; d <= lastNight; d++) {
         const cell = new Date(d * 86400000)
@@ -126,6 +130,11 @@ export async function GET(request: NextRequest) {
           missingDates.push(dayToIso(d))
           continue
         }
+        if (bookingTotal !== null) {
+          const bp = hit.bookingPrice === null ? null : Number(hit.bookingPrice)
+          bookingTotal = bp === null ? null : Math.round((bookingTotal + bp) * 100) / 100
+        }
+
         const price = Number(hit.pricePerNight)
         const tail = segments[segments.length - 1]
         if (tail && tail.pricePerNight === price && tail.name === (hit.name ?? null) && toDay(tail.to) === d - 1) {
@@ -158,6 +167,11 @@ export async function GET(request: NextRequest) {
         conflicts,
         total,
         pricePerNight: total === null ? null : Math.round((total / nights) * 100) / 100,
+        bookingTotal: missingDates.length > 0 ? null : bookingTotal,
+        bookingPricePerNight:
+          missingDates.length > 0 || bookingTotal === null
+            ? null
+            : Math.round((bookingTotal / nights) * 100) / 100,
         segments,
         missingDates,
       }
