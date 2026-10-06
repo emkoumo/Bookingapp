@@ -39,6 +39,8 @@ type QuoteProperty = {
   conflicts: Conflict[]
   total: number | null
   pricePerNight: number | null
+  bookingTotal: number | null
+  bookingPricePerNight: number | null
   segments: Segment[]
   missingDates: string[]
 }
@@ -53,8 +55,12 @@ type Quote = {
   properties: QuoteProperty[]
 }
 
+// Whole amounts lose the trailing ,00 — a round price should read round.
 const euro = (n: number) =>
-  n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+  n.toLocaleString('el-GR', {
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }) + ' €'
 
 const shortDate = (iso: string) => format(parseISO(iso), 'd MMM', { locale: el })
 
@@ -203,31 +209,59 @@ function QuoteContent() {
                         <div className="space-y-2">
                           {available.map((p) => (
                             <div key={p.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                              <div className="flex items-center justify-between px-4 py-3">
-                                <div className="min-w-0">
-                                  <div className="font-bold text-gray-900">{p.name}</div>
+                              <div className="px-4 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-900">{p.name}</div>
+                                    {p.total !== null ? (
+                                      <>
+                                        {/* The per-night figure leads: it is what
+                                            gets said on the phone. */}
+                                        <div className="mt-1 text-2xl font-bold text-blue-600 leading-none">
+                                          {euro(p.pricePerNight!)}
+                                          <span className="ml-1 text-sm font-semibold text-gray-500">/ νύχτα</span>
+                                        </div>
+                                        {p.bookingPricePerNight !== null && (
+                                          <div className="mt-1.5 flex items-center gap-1.5">
+                                            <span
+                                              className="w-4 h-4 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-extrabold text-white"
+                                              style={{ backgroundColor: '#003b95' }}
+                                            >
+                                              B
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                              {euro(p.bookingPricePerNight)} / νύχτα στο Booking
+                                            </span>
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="mt-1 inline-block text-xs font-semibold text-amber-700">
+                                        χωρίς τιμή
+                                      </span>
+                                    )}
+                                  </div>
+
                                   {p.total !== null && (
-                                    <div className="text-xs text-gray-500 mt-0.5">
-                                      {euro(p.pricePerNight!)} / νύχτα
+                                    <div className="flex items-start gap-1 flex-shrink-0 text-right">
+                                      <div>
+                                        <div className="text-lg font-bold text-gray-900 leading-tight">
+                                          {euro(p.total)}
+                                        </div>
+                                        <div className="text-xs text-gray-500">σύνολο</div>
+                                      </div>
+                                      <button
+                                        onClick={() => copyLine(p)}
+                                        className="p-2 -mt-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Αντιγραφή για μήνυμα"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                      </button>
                                     </div>
                                   )}
                                 </div>
-                                {p.total !== null ? (
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <div className="text-xl font-bold text-blue-600">{euro(p.total)}</div>
-                                    <button
-                                      onClick={() => copyLine(p)}
-                                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                      title="Αντιγραφή για μήνυμα"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs font-semibold text-amber-700 flex-shrink-0">χωρίς τιμή</span>
-                                )}
                               </div>
 
                               {/* Missing prices */}
