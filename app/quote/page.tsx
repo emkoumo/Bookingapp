@@ -210,58 +210,57 @@ function QuoteContent() {
                           {available.map((p) => (
                             <div key={p.id} className="border border-gray-200 rounded-xl overflow-hidden">
                               <div className="px-4 py-3">
+                                {/* Name and the copy action share the top line, so
+                                    the two money figures can sit on one row below
+                                    at the same size, baseline-aligned. */}
                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-gray-900">{p.name}</div>
-                                    {p.total !== null ? (
-                                      <>
-                                        {/* The per-night figure leads: it is what
-                                            gets said on the phone. */}
-                                        <div className="mt-1 text-2xl font-bold text-blue-600 leading-none">
-                                          {euro(p.pricePerNight!)}
-                                          <span className="ml-1 text-sm font-semibold text-gray-500">/ νύχτα</span>
-                                        </div>
-                                        {p.bookingPricePerNight !== null && (
-                                          <div className="mt-1.5 flex items-center gap-1.5">
-                                            <span
-                                              className="w-4 h-4 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-extrabold text-white"
-                                              style={{ backgroundColor: '#003b95' }}
-                                            >
-                                              B
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                              {euro(p.bookingPricePerNight)} / νύχτα στο Booking
-                                            </span>
-                                          </div>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span className="mt-1 inline-block text-xs font-semibold text-amber-700">
-                                        χωρίς τιμή
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {p.total !== null && (
-                                    <div className="flex items-start gap-1 flex-shrink-0 text-right">
-                                      <div>
-                                        <div className="text-lg font-bold text-gray-900 leading-tight">
-                                          {euro(p.total)}
-                                        </div>
-                                        <div className="text-xs text-gray-500">σύνολο</div>
-                                      </div>
-                                      <button
-                                        onClick={() => copyLine(p)}
-                                        className="p-2 -mt-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Αντιγραφή για μήνυμα"
-                                      >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
-                                      </button>
-                                    </div>
+                                  <div className="font-bold text-gray-900 min-w-0 truncate">{p.name}</div>
+                                  {p.total !== null ? (
+                                    <button
+                                      onClick={() => copyLine(p)}
+                                      className="p-1.5 -mt-1 -mr-1 flex-shrink-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="Αντιγραφή για μήνυμα"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                      </svg>
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs font-semibold text-amber-700 flex-shrink-0">
+                                      χωρίς τιμή
+                                    </span>
                                   )}
                                 </div>
+
+                                {p.total !== null && (
+                                  <>
+                                    <div className="mt-1 flex items-baseline justify-between gap-3">
+                                      <div className="text-2xl font-bold text-blue-600 leading-none">
+                                        {euro(p.pricePerNight!)}
+                                        <span className="ml-1 text-sm font-semibold text-gray-500">/ νύχτα</span>
+                                      </div>
+                                      <div className="text-2xl font-bold text-gray-900 leading-none text-right">
+                                        {euro(p.total)}
+                                        <span className="ml-1 text-sm font-semibold text-gray-500">σύνολο</span>
+                                      </div>
+                                    </div>
+
+                                    {p.bookingPricePerNight !== null && (
+                                      <div className="mt-2 flex items-center gap-1.5">
+                                        <span
+                                          className="w-4 h-4 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-extrabold text-white"
+                                          style={{ backgroundColor: '#003b95' }}
+                                        >
+                                          B
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {euro(p.bookingPricePerNight)} / νύχτα · {euro(p.bookingTotal!)} σύνολο
+                                          <span className="ml-1">στο Booking</span>
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
 
                               {/* Missing prices */}

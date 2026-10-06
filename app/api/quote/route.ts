@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { climateFeeForNight, DEFAULT_FEE_SETTINGS, type FeeSettings } from '@/lib/pricing'
 
 /**
  * Availability + price quote for a date range, for one business's properties.
@@ -56,6 +57,17 @@ export async function GET(request: NextRequest) {
 
     const windowStart = new Date(first * 86400000)
     const windowEndExclusive = new Date(end * 86400000)
+
+    // Fee settings are per business; absent means the defaults apply.
+    const settingsRow = await prisma.pricingSettings.findUnique({ where: { businessId } })
+    const feeSettings: FeeSettings = settingsRow
+      ? {
+          climateFeeHigh: Number(settingsRow.climateFeeHigh),
+          climateFeeLow: Number(settingsRow.climateFeeLow),
+          highSeasonStartMonth: settingsRow.highSeasonStartMonth,
+          highSeasonEndMonth: settingsRow.highSeasonEndMonth,
+        }
+      : DEFAULT_FEE_SETTINGS
 
     const [properties, bookings, blocked, ranges] = await Promise.all([
       prisma.property.findMany({
@@ -118,9 +130,9 @@ export async function GET(request: NextRequest) {
       const mine = ranges.filter((r) => r.propertyId === p.id)
       const segments: Segment[] = []
       const missingDates: string[] = []
-      // The Extranet price for the same stay, shown for comparison when
-      // quoting. Null unless every night has one, so a partial figure is never
-      // presented as the Booking total.
+      // What the guest actually sees on Booking.com: the Extranet price plus
+      // that night's climate fee (177 + 8 = 185). Null unless every night has
+      // an Extranet price, so a partial figure is never shown as the total.
       let bookingTotal: number | null = 0
 
       for (let d = first; d <= lastNight; d++) {
@@ -132,7 +144,10 @@ export async function GET(request: NextRequest) {
         }
         if (bookingTotal !== null) {
           const bp = hit.bookingPrice === null ? null : Number(hit.bookingPrice)
-          bookingTotal = bp === null ? null : Math.round((bookingTotal + bp) * 100) / 100
+          bookingTotal =
+            bp === null
+              ? null
+              : Math.round((bookingTotal + bp + climateFeeForNight(dayToIso(d), feeSettings)) * 100) / 100
         }
 
         const price = Number(hit.pricePerNight)
