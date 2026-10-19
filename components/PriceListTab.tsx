@@ -44,6 +44,15 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
   const [uplift, setUplift] = useState<string>('0')
   const [copying, setCopying] = useState(false)
   const [notice, setNotice] = useState<string>('')
+  // The overview table is the landing view; all changes happen in 'edit'.
+  const [mode, setMode] = useState<'overview' | 'edit'>('overview')
+
+  // Bring the period opened from the overview into view once the edit screen renders.
+  useEffect(() => {
+    if (mode === 'edit' && editing) {
+      document.getElementById(`price-group-${editing}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [mode, editing])
 
   // Fetch price ranges on mount
   useEffect(() => {
@@ -273,17 +282,73 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     }
   }
 
+  // Ranges are stored as UTC day bounds (dateTo ends at 23:59:59.999Z), so read
+  // only the date part — new Date() on the full ISO string shifts dateTo into the
+  // next day in Greek time.
+  const toDay = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00`)
+  const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+  const dayCount = (from: Date, to: Date) => Math.round((to.getTime() - from.getTime()) / 86400000) + 1
+
+  // Overview rows: each period in date order, with a gap row wherever the
+  // following period doesn't start the day after the previous one ends.
+  type OverviewRow =
+    | { kind: 'range'; group: (typeof groupedRangesList)[number] }
+    | { kind: 'gap'; from: Date; to: Date }
+  const overviewRows = groupedRangesList.reduce<OverviewRow[]>((rows, group, i) => {
+    const prev = groupedRangesList[i - 1]
+    if (prev) {
+      const gapFrom = addDays(toDay(prev.dateTo), 1)
+      const gapTo = addDays(toDay(group.dateFrom), -1)
+      if (gapFrom <= gapTo) rows.push({ kind: 'gap', from: gapFrom, to: gapTo })
+    }
+    rows.push({ kind: 'range', group })
+    return rows
+  }, [])
+
+  const openEdit = (groupKey: string | null) => {
+    setMode('edit')
+    setEditing(groupKey)
+    setNotice('')
+    setError('')
+  }
+
+  const openAddForGap = (from: Date, to: Date) => {
+    setFormData({ ...formData, dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(to, 'yyyy-MM-dd') })
+    openEdit(null)
+  }
+
+  // Leaving edit discards any unsaved inline changes by reloading from the server.
+  const backToOverview = () => {
+    setMode('overview')
+    setEditing(null)
+    setNotice('')
+    setError('')
+    fetchPriceRanges()
+  }
+
+  // Table dates: "29-31 Ιουλ" within one month, "1 Απρ – 31 Μαΐ" across months.
+  const formatShortRange = (from: Date, to: Date) =>
+    from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
+      ? `${format(from, 'd')}-${format(to, 'd MMM', { locale: el })}`
+      : `${format(from, 'd MMM', { locale: el })} – ${format(to, 'd MMM', { locale: el })}`
+
+  const formatPrice = (n: number | null) => (n === null ? '—' : `€${Number(n).toFixed(2)}`)
+
   // Format date range as "1-31 May 2026"
   const formatDateRange = (dateFrom: string, dateTo: string) => {
-    const from = new Date(dateFrom)
-    const to = new Date(dateTo)
+    const from = toDay(dateFrom)
+    const to = toDay(dateTo)
 
-    const dayFrom = format(from, 'd')
-    const dayTo = format(to, 'd')
-    const month = format(from, 'MMMM', { locale: el })
-    const year = format(from, 'yyyy')
+    const sameYear = from.getFullYear() === to.getFullYear()
+    const sameMonth = sameYear && from.getMonth() === to.getMonth()
 
-    return `${dayFrom}-${dayTo} ${month} ${year}`
+    if (sameMonth) {
+      return `${format(from, 'd')}-${format(to, 'd MMMM yyyy', { locale: el })}`
+    }
+    if (sameYear) {
+      return `${format(from, 'd MMMM', { locale: el })} - ${format(to, 'd MMMM yyyy', { locale: el })}`
+    }
+    return `${format(from, 'd MMMM yyyy', { locale: el })} - ${format(to, 'd MMMM yyyy', { locale: el })}`
   }
 
   if (properties.length === 0) {
@@ -296,12 +361,26 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
 
   return (
     <div className="space-y-6">
-      {/* Info Message */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p className="text-sm text-blue-800">
-          <span className="font-bold">Σημείωση:</span> Οι τιμές που ορίζετε εφαρμόζονται αυτόματα σε όλα τα καταλύματα ({properties.length} {properties.length === 1 ? 'κατάλυμα' : 'καταλύματα'}).
-        </p>
-      </div>
+      {mode === 'edit' && (
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={backToOverview}
+              className="px-3 py-2 text-sm font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ← Πίσω
+            </button>
+            <h3 className="font-bold text-gray-900">Επεξεργασία τιμοκαταλόγου</h3>
+          </div>
+
+          {/* Info Message */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800">
+              <span className="font-bold">Σημείωση:</span> Οι τιμές που ορίζετε εφαρμόζονται αυτόματα σε όλα τα καταλύματα ({properties.length} {properties.length === 1 ? 'κατάλυμα' : 'καταλύματα'}).
+            </p>
+          </div>
+        </>
+      )}
 
       {/* Season tabs */}
       <div>
@@ -338,6 +417,87 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
         </div>
       )}
 
+      {mode === 'overview' ? (
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="font-bold text-gray-900">Τιμοκατάλογος {selectedYear}</h3>
+            <button
+              onClick={() => openEdit(null)}
+              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:opacity-90 font-semibold text-sm transition-opacity whitespace-nowrap"
+            >
+              Επεξεργασία
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8 text-gray-600 text-sm">Φόρτωση...</div>
+          ) : overviewRows.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 text-sm">
+              Δεν υπάρχουν τιμές για το {selectedYear}
+            </div>
+          ) : (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left px-3 py-2">Περίοδος</th>
+                    <th className="text-right px-2 py-2">Ημέρες</th>
+                    <th className="text-right px-2 py-2">Απευθείας</th>
+                    <th className="text-right px-3 py-2">Booking</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {overviewRows.map((row) =>
+                    row.kind === 'gap' ? (
+                      <tr
+                        key={`gap-${row.from.toISOString()}`}
+                        onClick={() => openAddForGap(row.from, row.to)}
+                        className="bg-amber-50 cursor-pointer hover:bg-amber-100"
+                      >
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-amber-800">⚠ Χωρίς τιμή</div>
+                          <div className="text-xs text-amber-700">
+                            {formatShortRange(row.from, row.to)}
+                          </div>
+                        </td>
+                        <td className="text-right px-2 py-2 text-amber-800">{dayCount(row.from, row.to)}</td>
+                        <td className="text-right px-2 py-2 text-amber-800">—</td>
+                        <td className="text-right px-3 py-2 text-amber-800">—</td>
+                      </tr>
+                    ) : (
+                      <tr
+                        key={row.group.key}
+                        onClick={() => openEdit(row.group.key)}
+                        className="cursor-pointer hover:bg-blue-50"
+                      >
+                        <td className="px-3 py-2">
+                          {row.group.name && <div className="font-semibold text-gray-900">{row.group.name}</div>}
+                          <div className={row.group.name ? 'text-xs text-gray-600' : 'font-semibold text-gray-900'}>
+                            {formatShortRange(toDay(row.group.dateFrom), toDay(row.group.dateTo))}
+                          </div>
+                        </td>
+                        <td className="text-right px-2 py-2 text-gray-600">
+                          {dayCount(toDay(row.group.dateFrom), toDay(row.group.dateTo))}
+                        </td>
+                        <td className="text-right px-2 py-2 font-bold text-blue-600 whitespace-nowrap">
+                          {formatPrice(row.group.pricePerNight)}
+                        </td>
+                        <td className={`text-right px-3 py-2 font-bold whitespace-nowrap ${row.group.bookingPrice === null ? 'text-amber-700' : 'text-gray-800'}`}>
+                          {formatPrice(row.group.bookingPrice)}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-xs text-gray-500 mt-2">
+            Ισχύει για όλα τα καταλύματα. Πατήστε μια γραμμή για επεξεργασία.
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Copy last season forward — only offered when this year is still empty,
           so it can never be used to duplicate over existing prices. */}
       {countForYear(selectedYear) === 0 && sourceYear && (
@@ -464,7 +624,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
             </div>
           ) : (
             groupedRangesList.map((group) => (
-              <div key={group.key} className="bg-white border border-gray-200 rounded-xl p-4">
+              <div key={group.key} id={`price-group-${group.key}`} className="bg-white border border-gray-200 rounded-xl p-4">
                 {editing === group.key ? (
                   <div className="space-y-3">
                     <div>
@@ -570,7 +730,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                         Αποθήκευση
                       </button>
                       <button
-                        onClick={() => setEditing(null)}
+                        onClick={() => { setEditing(null); fetchPriceRanges() }}
                         className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-semibold transition-colors"
                       >
                         Ακύρωση
@@ -643,6 +803,8 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }
