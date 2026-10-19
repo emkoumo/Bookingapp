@@ -326,6 +326,12 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
     fetchPriceRanges()
   }
 
+  // Table dates: "29-31 Ιουλ" within one month, "1 Απρ – 31 Μαΐ" across months.
+  const formatShortRange = (from: Date, to: Date) =>
+    from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
+      ? `${format(from, 'd')}-${format(to, 'd MMM', { locale: el })}`
+      : `${format(from, 'd MMM', { locale: el })} – ${format(to, 'd MMM', { locale: el })}`
+
   const formatPrice = (n: number | null) => (n === null ? '—' : `€${Number(n).toFixed(2)}`)
 
   // Format date range as "1-31 May 2026"
@@ -451,7 +457,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                         <td className="px-3 py-2">
                           <div className="font-semibold text-amber-800">⚠ Χωρίς τιμή</div>
                           <div className="text-xs text-amber-700">
-                            {format(row.from, 'd MMM', { locale: el })} – {format(row.to, 'd MMM', { locale: el })}
+                            {formatShortRange(row.from, row.to)}
                           </div>
                         </td>
                         <td className="text-right px-2 py-2 text-amber-800">{dayCount(row.from, row.to)}</td>
@@ -467,7 +473,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                         <td className="px-3 py-2">
                           {row.group.name && <div className="font-semibold text-gray-900">{row.group.name}</div>}
                           <div className={row.group.name ? 'text-xs text-gray-600' : 'font-semibold text-gray-900'}>
-                            {format(toDay(row.group.dateFrom), 'd MMM', { locale: el })} – {format(toDay(row.group.dateTo), 'd MMM', { locale: el })}
+                            {formatShortRange(toDay(row.group.dateFrom), toDay(row.group.dateTo))}
                           </div>
                         </td>
                         <td className="text-right px-2 py-2 text-gray-600">
