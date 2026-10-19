@@ -93,9 +93,14 @@ export default function Header() {
           onClick={() => router.push('/')}
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          <div className="hidden md:flex bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-10 h-10 rounded-lg items-center justify-center text-xl font-bold shadow-lg">
-            📅
-          </div>
+          {/* Same mark as the installed PWA icon. */}
+          <img
+            src="/icon-192.png"
+            alt=""
+            width={40}
+            height={40}
+            className="hidden md:block w-10 h-10 rounded-lg shadow-lg"
+          />
           <div>
             <h1 className="text-lg md:text-xl font-bold text-gray-800 leading-tight">Booking App</h1>
             <p className="text-xs text-gray-500 hidden md:block">Διαχείριση Κρατήσεων</p>
