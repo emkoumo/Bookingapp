@@ -93,15 +93,16 @@ export default function Header() {
           onClick={() => router.push('/')}
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          {/* Same mark as the installed PWA icon. */}
+          {/* Same mark as the installed PWA icon. On mobile it stands alone; the
+              title stays for screen readers. */}
           <img
             src="/icon-192.png"
             alt=""
             width={40}
             height={40}
-            className="hidden md:block w-10 h-10 rounded-lg shadow-lg"
+            className="w-10 h-10 rounded-lg shadow-lg"
           />
-          <div>
+          <div className="sr-only md:not-sr-only">
             <h1 className="text-lg md:text-xl font-bold text-gray-800 leading-tight">Booking App</h1>
             <p className="text-xs text-gray-500 hidden md:block">Διαχείριση Κρατήσεων</p>
           </div>
