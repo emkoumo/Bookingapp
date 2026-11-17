@@ -206,7 +206,9 @@ const HOTELS: Record<string, Hotel> = {
 - Private parking
 - Big garden
 - BBQ
-- Shared washing machine`,
+- Shared washing machine
+
+Check-in 15:00 – 22:00, check-out by 11:00.`,
       amenitiesEl: `ΠΑΡΟΧΕΣ ΔΙΑΜΕΡΙΣΜΑΤΟΣ
 - 2 ημίδιπλα κρεβάτια (1,20μ. το καθένα)
 - Επιπλέον μονό κρεβάτι ή παρκοκρέβατο μωρού (+5€/ημέρα)
@@ -215,7 +217,9 @@ const HOTELS: Record<string, Hotel> = {
 - Ιδιωτικό πάρκινγκ
 - Μεγάλος κήπος
 - BBQ
-- Κοινόχρηστο πλυντήριο ρούχων`,
+- Κοινόχρηστο πλυντήριο ρούχων
+
+Check-in 15:00 – 22:00, check-out έως 11:00.`,
     }),
   },
 
@@ -232,7 +236,7 @@ const HOTELS: Record<string, Hotel> = {
       amenitiesEn: `VILLA AMENITIES
 - 2 master bedrooms and 2 bathrooms
 - Up to 6 guests
-- Private pool and private hot tub
+- Private pool with hydromassage
 - Private garden with sun loungers, BBQ and outdoor dining
 - Fully equipped kitchen with espresso machine
 - Air conditioning throughout and high-speed Wi-Fi
@@ -241,11 +245,11 @@ const HOTELS: Record<string, Hotel> = {
 - Free private parking
 - Baby cot on request
 
-Check-in 15:00 – 22:00 (self check-in), check-out by 11:00.`,
+Check-in 15:00 – 22:00, check-out by 11:00.`,
       amenitiesEl: `ΠΑΡΟΧΕΣ ΒΙΛΑΣ
 - 2 κύρια υπνοδωμάτια και 2 μπάνια
 - Έως 6 άτομα
-- Ιδιωτική πισίνα και ιδιωτικό υδρομασάζ (hot tub)
+- Ιδιωτική πισίνα με υδρομασάζ
 - Ιδιωτικός κήπος με ξαπλώστρες, BBQ και τραπεζαρία εξωτερικού χώρου
 - Πλήρως εξοπλισμένη κουζίνα με μηχανή espresso
 - Κλιματισμός σε όλους τους χώρους και γρήγορο Wi-Fi
@@ -254,7 +258,7 @@ Check-in 15:00 – 22:00 (self check-in), check-out by 11:00.`,
 - Δωρεάν ιδιωτικό πάρκινγκ
 - Βρεφικό κρεβάτι κατόπιν αιτήματος
 
-Check-in 15:00 – 22:00 (αυτόνομο check-in), check-out έως 11:00.`,
+Check-in 15:00 – 22:00, check-out έως 11:00.`,
     }),
   },
 }
