@@ -103,6 +103,20 @@ function listPricesOf(stay: Stay, ranges: PriceRange[]): Night[] {
   return directPricesFor(nightsBetween(stay.checkIn, stay.checkOut), ranges)
 }
 
+function copyWithTextarea(text: string) {
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.opacity = '0'
+  document.body.appendChild(area)
+  area.select()
+  area.setSelectionRange(0, text.length) // iOS needs an explicit range
+  const ok = document.execCommand('copy')
+  document.body.removeChild(area)
+  if (!ok) throw new Error('execCommand copy failed')
+}
+
 function nightsOf(stay: Stay, ranges: PriceRange[]): Night[] {
   return listPricesOf(stay, ranges).map((night) =>
     night.date in stay.overrides ? { ...night, price: parsePrice(stay.overrides[night.date]) } : night
@@ -280,7 +294,13 @@ export default function EmailComposerModal({
 
   const copyMessage = async () => {
     try {
-      await navigator.clipboard.writeText(message)
+      // navigator.clipboard exists only on https and localhost; on a plain-http
+      // address (e.g. testing from a phone on the LAN) fall back to execCommand.
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(message)
+      } else {
+        copyWithTextarea(message)
+      }
       showToast('Αντιγράφηκε!')
     } catch (err) {
       console.error('Copy text error:', err)
