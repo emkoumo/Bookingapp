@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import DatePicker from './DatePicker'
+import PricingSettingsPanel from './PricingSettingsPanel'
 import { currentYear, orderYears } from '@/lib/year'
 
 interface Property {
@@ -495,6 +496,9 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
           <p className="text-xs text-gray-500 mt-2">
             Ισχύει για όλα τα καταλύματα. Πατήστε μια γραμμή για επεξεργασία.
           </p>
+          <div className="mt-6">
+            <PricingSettingsPanel businessId={businessId} />
+          </div>
         </div>
       ) : (
       <>
