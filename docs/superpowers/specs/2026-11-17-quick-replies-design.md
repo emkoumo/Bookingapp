@@ -42,12 +42,13 @@ All four cases get an "edit template" mode with EN/GR tabs.
 ## Decisions taken by the builder (user can override)
 - All apartments of a hotel share one price list (the price list screen copies every range to
   all apartments), so prices are read from the hotel's first apartment.
-- Schema: two **nullable** columns on `EmailTemplate` (`subjectEl`, `bodyEl`). Additive only,
+- Schema: two **nullable** columns on `EmailTemplate` (`subjectEl`, `bodyEl`) and `Business.unitType`
+  (default "apartment"; Elegancia = "villa", so replies say villa/βίλα). Additive only,
   applied with `prisma db push` per the project's schema approach.
-- Evaggelia's four texts (EN + GR) are written by a one-off script, run on dev first; on
+- Both hotels' texts (EN + GR) are written by `scripts/set-quick-replies.ts`, run on dev first; on
   production only after a backup and the user's go-ahead.
 - Old image code, `public/email-templates/`, and the price-list image UI are removed from the
   composer. The `imageUrl` / `includeImageByDefault` columns stay (no destructive schema change).
 
 ## Out of scope
-Elegancia texts (next, same mechanism), images/cards, SaaS/auth.
+Images/cards, SaaS/auth. Elegancia amenities come from elegancialuxuryvillas.com.

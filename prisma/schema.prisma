@@ -11,6 +11,8 @@ model Business {
   id             String          @id @default(uuid())
   name           String
   email          String
+  // What one rentable unit is called in guest replies: "apartment" or "villa".
+  unitType       String          @default("apartment")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   emailTemplates EmailTemplate[]

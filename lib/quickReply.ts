@@ -7,6 +7,7 @@
  */
 
 export type Lang = 'en' | 'el'
+export type Unit = 'apartment' | 'villa'
 
 export interface Night {
   date: string // yyyy-MM-dd, the night being slept
@@ -36,7 +37,6 @@ const MONTHS: Record<Lang, string[]> = {
 const WORDS = {
   en: {
     night: 'night', nights: 'nights', stayNight: 'night', stayNights: 'nights',
-    apartment: 'apartment', apartments: 'apartments', perApartment: 'Per apartment',
     total: 'TOTAL', advance: 'ADVANCE PAYMENT',
     bank: 'Bank', accountName: 'Account name', iban: 'IBAN', swift: 'SWIFT',
     fullName: 'Full name', country: 'Country', city: 'City', phone: 'Phone',
@@ -44,13 +44,24 @@ const WORDS = {
   },
   el: {
     night: 'νύχτα', nights: 'νύχτες', stayNight: 'διανυκτέρευση', stayNights: 'διανυκτερεύσεις',
-    apartment: 'διαμέρισμα', apartments: 'διαμερίσματα', perApartment: 'Ανά διαμέρισμα',
     total: 'ΣΥΝΟΛΟ', advance: 'ΠΡΟΚΑΤΑΒΟΛΗ',
     bank: 'Τράπεζα', accountName: 'Δικαιούχος', iban: 'IBAN', swift: 'SWIFT',
     fullName: 'Ονοματεπώνυμο', country: 'Χώρα', city: 'Πόλη', phone: 'Τηλέφωνο',
     option: 'ΕΠΙΛΟΓΗ',
   },
 } as const
+
+/** Singular, plural and "per one" for the unit a hotel rents out. */
+export const UNIT_WORDS: Record<Unit, Record<Lang, { one: string; many: string; per: string }>> = {
+  apartment: {
+    en: { one: 'apartment', many: 'apartments', per: 'Per apartment' },
+    el: { one: 'διαμέρισμα', many: 'διαμερίσματα', per: 'Ανά διαμέρισμα' },
+  },
+  villa: {
+    en: { one: 'villa', many: 'villas', per: 'Per villa' },
+    el: { one: 'βίλα', many: 'βίλες', per: 'Ανά βίλα' },
+  },
+}
 
 // Dates travel as yyyy-MM-dd strings and are handled at UTC midnight, the same
 // way the price ranges are stored, so no timezone can shift a night.
@@ -143,9 +154,15 @@ export function totalFor(groups: NightGroup[], apartments: number): number {
   return round(groups.reduce((sum, g) => sum + g.subtotal, 0) * apartments)
 }
 
-/** Price lines, the per-apartment step when there is more than one, and the total. */
-export function renderPriceBlock(groups: NightGroup[], apartments: number, lang: Lang): string {
+/** Price lines, the per-unit step when there is more than one unit, and the total. */
+export function renderPriceBlock(
+  groups: NightGroup[],
+  apartments: number,
+  lang: Lang,
+  unit: Unit = 'apartment'
+): string {
   const w = WORDS[lang]
+  const u = UNIT_WORDS[unit][lang]
   const lines = groups.map(
     (g) =>
       `${shortSpan(g.from, g.to, lang)}:  ${count(g.nights, w.night, w.nights)} × ${formatEuro(g.price)} = ${formatEuro(g.subtotal)}`
@@ -153,8 +170,8 @@ export function renderPriceBlock(groups: NightGroup[], apartments: number, lang:
   const perApartment = totalFor(groups, 1)
   lines.push('')
   if (apartments > 1) {
-    lines.push(`${w.perApartment}: ${formatEuro(perApartment)}`)
-    lines.push(`${count(apartments, w.apartment, w.apartments)} × ${formatEuro(perApartment)}`)
+    lines.push(`${u.per}: ${formatEuro(perApartment)}`)
+    lines.push(`${count(apartments, u.one, u.many)} × ${formatEuro(perApartment)}`)
     lines.push('')
   }
   lines.push(`${w.total}: ${formatEuro(totalFor(groups, apartments))}`)
@@ -168,13 +185,14 @@ export function renderOption(
   checkOut: string,
   groups: NightGroup[],
   apartments: number,
-  lang: Lang
+  lang: Lang,
+  unit: Unit = 'apartment'
 ): string {
   return [
     `${WORDS[lang].option} ${index}`,
     renderStayDates(checkIn, checkOut, lang),
     '',
-    renderPriceBlock(groups, apartments, lang),
+    renderPriceBlock(groups, apartments, lang, unit),
   ].join('\n')
 }
 

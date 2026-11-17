@@ -5,6 +5,8 @@ import { format } from 'date-fns'
 import DatePicker from './DatePicker'
 import {
   type Lang,
+  type Unit,
+  UNIT_WORDS,
   type Night,
   nightsBetween,
   directPricesFor,
@@ -137,6 +139,7 @@ export default function EmailComposerModal({
   const [toastType, setToastType] = useState<'success' | 'error'>('success')
 
   const [ranges, setRanges] = useState<PriceRange[]>([])
+  const [unit, setUnit] = useState<Unit>('apartment')
   const [properties, setProperties] = useState<Property[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
 
@@ -189,6 +192,9 @@ export default function EmailComposerModal({
   // screen copies each range to all of them), so the first one is read.
   const loadPricing = async () => {
     try {
+      const biz = await fetch('/api/businesses').then((r) => r.json())
+      const mine = Array.isArray(biz) ? biz.find((b: { id: string }) => b.id === businessId) : null
+      if (mine?.unitType === 'villa') setUnit('villa')
       const res = await fetch(`/api/properties?businessId=${businessId}`)
       const props: Property[] = await res.json()
       setProperties(props)
@@ -251,12 +257,12 @@ export default function EmailComposerModal({
     }
     if (missingPrice) return 'Συμπληρώστε τις τιμές που λείπουν'
     if (template.name === 'booking_confirmation') {
-      if (selectedApartments.length === 0) return 'Επιλέξτε διαμέρισμα'
+      if (selectedApartments.length === 0) return unit === 'villa' ? 'Επιλέξτε βίλα' : 'Επιλέξτε διαμέρισμα'
       if (!advancePayment.trim()) return 'Συμπληρώστε την προκαταβολή'
       if (!selectedPaymentMethod) return 'Επιλέξτε μέθοδο πληρωμής'
     }
     return ''
-  }, [priced, template.name, filledStays.length, missingPrice, selectedApartments.length, advancePayment, selectedPaymentMethod])
+  }, [unit, priced, template.name, filledStays.length, missingPrice, selectedApartments.length, advancePayment, selectedPaymentMethod])
 
   const message = useMemo(() => {
     const body = lang === 'el' && hasGreek ? template.bodyEl! : template.body
@@ -270,13 +276,13 @@ export default function EmailComposerModal({
       values.ALTERNATIVE_DATES = ready
         ? filledStays
             .map((q, i) =>
-              renderOption(i + 1, q.stay.checkIn, q.stay.checkOut, groupNights(q.nights), Math.max(apartments, 1), lang)
+              renderOption(i + 1, q.stay.checkIn, q.stay.checkOut, groupNights(q.nights), Math.max(apartments, 1), lang, unit)
             )
             .join('\n\n')
         : '[ ... ]'
     } else {
       values.DATES = first ? renderStayDates(first.stay.checkIn, first.stay.checkOut, lang) : '[ ... ]'
-      values.PRICE = first && ready ? renderPriceBlock(groupNights(first.nights), Math.max(apartments, 1), lang) : '[ ... ]'
+      values.PRICE = first && ready ? renderPriceBlock(groupNights(first.nights), Math.max(apartments, 1), lang, unit) : '[ ... ]'
     }
 
     if (template.name === 'booking_confirmation') {
@@ -290,7 +296,7 @@ export default function EmailComposerModal({
     }
 
     return fillTemplate(body, values)
-  }, [lang, hasGreek, template, priced, filledStays, missingPrice, apartments, properties, selectedApartments, paymentMethods, selectedPaymentMethod, advancePayment])
+  }, [lang, hasGreek, template, priced, filledStays, missingPrice, apartments, properties, selectedApartments, paymentMethods, selectedPaymentMethod, advancePayment, unit])
 
   const copyMessage = async () => {
     try {
@@ -447,7 +453,7 @@ export default function EmailComposerModal({
               {/* Apartments */}
               {priced && template.name !== 'booking_confirmation' && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Αριθμός διαμερισμάτων</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{unit === 'villa' ? 'Αριθμός βιλών' : 'Αριθμός διαμερισμάτων'}</label>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setApartmentCount(Math.max(1, apartmentCount - 1))}
@@ -469,7 +475,7 @@ export default function EmailComposerModal({
               )}
               {template.name === 'booking_confirmation' && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Διαμερίσματα κράτησης</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{unit === 'villa' ? 'Βίλες κράτησης' : 'Διαμερίσματα κράτησης'}</label>
                   <div className="flex flex-wrap gap-2">
                     {properties.map((p) => {
                       const on = selectedApartments.includes(p.id)
@@ -500,6 +506,7 @@ export default function EmailComposerModal({
                   listPrices={listPricesOf(stay, ranges)}
                   overrides={stay.overrides}
                   apartments={Math.max(apartments, 1)}
+                  unit={unit}
                   onSet={(dates, text) => setNightPrices(stay, dates, text)}
                   onReset={() => updateStay(stay.id, { overrides: {} })}
                 />
@@ -674,6 +681,7 @@ function PriceEditor({
   listPrices,
   overrides,
   apartments,
+  unit,
   onSet,
   onReset,
 }: {
@@ -682,6 +690,7 @@ function PriceEditor({
   listPrices: Night[]
   overrides: Record<string, string>
   apartments: number
+  unit: Unit
   onSet: (dates: string[], text: string) => void
   onReset: () => void
 }) {
@@ -777,7 +786,7 @@ function PriceEditor({
       {complete && (
         <div className="text-right text-sm font-bold text-gray-900 mt-2">
           Σύνολο: {formatEuro(totalFor(groupNights(nights), apartments))}
-          {apartments > 1 && <span className="font-normal text-gray-600"> ({apartments} διαμερίσματα)</span>}
+          {apartments > 1 && <span className="font-normal text-gray-600"> ({apartments} {UNIT_WORDS[unit].el.many})</span>}
         </div>
       )}
     </div>

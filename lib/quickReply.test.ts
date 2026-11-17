@@ -80,6 +80,14 @@ test('price block multiplies by apartments and shows the per-apartment line', ()
   )
 })
 
+test('price block names villas for a villa hotel', () => {
+  const groups = groupNights(directPricesFor(nightsBetween('2026-07-10', '2026-07-12'), ranges))
+  const block = renderPriceBlock(groups, 3, 'el', 'villa')
+  assert.ok(block.includes('Ανά βίλα: 160€'))
+  assert.ok(block.includes('3 βίλες × 160€'))
+  assert.ok(renderPriceBlock(groups, 2, 'en', 'villa').includes('2 villas × 160€'))
+})
+
 test('a line crossing months names both months, a single night is singular', () => {
   const nights = [
     { date: '2026-07-31', price: 95 },
