@@ -31,8 +31,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    console.log('PATCH request body:', body)
-    const { id, subject, body: emailBody, imageUrl, includeImageByDefault } = body
+    const { id, subject, body: emailBody, subjectEl, bodyEl } = body
 
     if (!id) {
       return NextResponse.json(
@@ -41,21 +40,15 @@ export async function PATCH(request: Request) {
       )
     }
 
-    console.log('Updating template with:', {
-      id,
-      subject,
-      emailBody,
-      imageUrl,
-      includeImageByDefault,
-    })
-
+    // Empty Greek fields are stored as null, which the composer reads as
+    // "no Greek version".
     const template = await prisma.emailTemplate.update({
       where: { id },
       data: {
         subject,
         body: emailBody,
-        imageUrl,
-        includeImageByDefault,
+        subjectEl: subjectEl?.trim() ? subjectEl : null,
+        bodyEl: bodyEl?.trim() ? bodyEl : null,
       },
     })
 

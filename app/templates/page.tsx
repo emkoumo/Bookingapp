@@ -11,6 +11,8 @@ interface EmailTemplate {
   name: string
   subject: string
   body: string
+  subjectEl: string | null
+  bodyEl: string | null
   imageUrl: string | null
   includeImageByDefault: boolean
 }

@@ -132,6 +132,10 @@ model EmailTemplate {
   name                  String
   subject               String
   body                  String
+  // Greek version of the same reply. Null until the hotel writes one; the
+  // composer then offers English only.
+  subjectEl             String?
+  bodyEl                String?
   imageUrl              String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
