@@ -647,37 +647,37 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                         placeholder="προαιρετικό"
                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="min-w-0">
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Από</label>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={group.dateFrom.split('T')[0]}
-                          onChange={(e) => {
+                          onChange={(newDateFrom) => {
                             // Update all ranges in this group
-                            const newDateFrom = e.target.value
                             setPriceRanges(priceRanges.map(r =>
                               group.ranges.some(gr => gr.id === r.id) ? { ...r, dateFrom: newDateFrom } : r
                             ))
                           }}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          maxDate={group.dateTo.split('T')[0]}
+                          highlightDate={group.dateTo.split('T')[0]}
                         />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Έως</label>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={group.dateTo.split('T')[0]}
-                          onChange={(e) => {
+                          onChange={(newDateTo) => {
                             // Update all ranges in this group
-                            const newDateTo = e.target.value
                             setPriceRanges(priceRanges.map(r =>
                               group.ranges.some(gr => gr.id === r.id) ? { ...r, dateTo: newDateTo } : r
                             ))
                           }}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          minDate={group.dateFrom.split('T')[0]}
+                          highlightDate={group.dateFrom.split('T')[0]}
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">Απευθείας (€)</label>
                         <input
