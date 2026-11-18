@@ -643,7 +643,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                             group.ranges.some(gr => gr.id === r.id) ? { ...r, name: next } : r
                           ))
                         }}
-                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                        className="w-full h-[52px] px-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-base"
                         placeholder="προαιρετικό"
                       />
                     </div>
@@ -692,7 +692,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                               group.ranges.some(gr => gr.id === r.id) ? { ...r, pricePerNight: newPrice } : r
                             ))
                           }}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          className="w-full h-[52px] px-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-base"
                         />
                       </div>
                       <div>
@@ -710,7 +710,7 @@ export default function PriceListTab({ properties, businessId }: PriceListTabPro
                               group.ranges.some(gr => gr.id === r.id) ? { ...r, bookingPrice: next } : r
                             ))
                           }}
-                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          className="w-full h-[52px] px-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-base"
                           placeholder="—"
                         />
                       </div>

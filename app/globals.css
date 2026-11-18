@@ -279,3 +279,13 @@ body {
     min-height: 60px !important;
   }
 }
+
+/* iOS Safari zooms into any field whose text is under 16px when it is
+   focused, and ignores user-scalable=0 for this. Keep phone fields at 16px. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
